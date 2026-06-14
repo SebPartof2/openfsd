@@ -152,6 +152,8 @@ class _ScopePageState extends State<ScopePage> {
         content: TextField(
           controller: callsign,
           autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
           textCapitalization: TextCapitalization.characters,
           decoration: const InputDecoration(labelText: 'Callsign'),
           onSubmitted: (_) => Navigator.pop(ctx, true),
@@ -319,6 +321,8 @@ class _ScopePageState extends State<ScopePage> {
             Expanded(
               child: TextField(
                 controller: _cmd,
+                autocorrect: false,
+                enableSuggestions: false,
                 textInputAction: TextInputAction.send,
                 onSubmitted: _submit,
                 decoration: InputDecoration(

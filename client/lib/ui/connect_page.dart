@@ -239,6 +239,8 @@ class _ConnectPageState extends State<ConnectPage> {
     return TextField(
       controller: c,
       obscureText: obscure,
+      autocorrect: false,
+      enableSuggestions: false,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
