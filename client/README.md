@@ -101,10 +101,10 @@ add the **network client** entitlement. Add the following inside the `<dict>` of
 ## Connecting
 
 Fill in the server host/port, your **CID** and **password** (an OpenVector user —
-e.g. the default admin CID `1`), a **callsign**, **rating**, and **facility**
-(use a facility > 0 such as `5` for Approach so you can command aircraft), plus a
-**scope center** and **visibility range**. A large vis range (e.g. 500 NM) lets
-you see traffic across a wide area.
+e.g. the default admin CID `1`), a **callsign**, **rating**, and **position**
+(Clearance / Ground / Tower), plus the **scope centre** and **range**. Defaults
+target Honolulu Tower (`HNL_TWR` / PHNL). Your last-used settings — including the
+password — are remembered locally between launches.
 
 ## Notes
 
