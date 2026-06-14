@@ -52,6 +52,16 @@ func (s *Server) emptyHandler(client *Client, packet []byte) {
 func (s *Server) handleTextMessage(client *Client, packet []byte) {
 	recipient := getField(packet, 1)
 
+	// Simulated-aircraft control commands
+	if string(recipient) == "SIM" {
+		if !client.isAtc || client.facilityType <= 0 {
+			client.sendError(InvalidControlError, "Active ATC only")
+			return
+		}
+		s.simManager.handleCommand(client, string(getField(packet, 2)))
+		return
+	}
+
 	// ATC chat
 	if string(recipient) == "@49999" {
 		if !client.isAtc {
@@ -311,6 +321,15 @@ func (s *Server) handleClientQuery(client *Client, packet []byte) {
 			client.sendError(InvalidControlError, "Invalid control")
 			return
 		}
+
+		// Track maneuver authority over simulated aircraft as it changes hands.
+		switch string(queryType) {
+		case "IT", "HT": // Initiate track / acquire via handoff
+			s.simManager.setTrack(string(getField(packet, 3)), client.callsign)
+		case "DR": // Drop track
+			s.simManager.dropTrack(string(getField(packet, 3)), client.callsign)
+		}
+
 		forwardClientQuery(s.postOffice, client, packet)
 
 	// Allow aircraft configuration queries from any client

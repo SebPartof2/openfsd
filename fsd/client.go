@@ -35,6 +35,14 @@ type Client struct {
 
 	authState       vatsimAuthState
 	sendFastEnabled bool
+
+	// Fields below are only relevant for server-side simulated aircraft.
+	isVirtual             bool          // True if this is a controller-spawned simulated aircraft
+	creator               string        // Callsign of the controller who spawned it (audit only)
+	controllingController atomic.String // Callsign of the controller currently holding the track ("" = untracked)
+	targetHeading         atomic.Int32  // Assigned heading in degrees
+	targetAltitude        atomic.Int32  // Assigned altitude in feet
+	targetGroundspeed     atomic.Int32  // Assigned groundspeed in knots
 }
 
 type LatLon struct {

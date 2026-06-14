@@ -18,6 +18,7 @@ type Server struct {
 	cfg          *ServerConfig
 	postOffice   *postOffice
 	metarService *metarService
+	simManager   *simManager
 	dbRepo       *db.Repositories
 }
 
@@ -31,6 +32,7 @@ func NewServer(cfg *ServerConfig, dbRepo *db.Repositories, numMetarWorkers int) 
 		metarService: newMetarService(numMetarWorkers),
 		dbRepo:       dbRepo,
 	}
+	server.simManager = newSimManager(server)
 	return
 }
 
@@ -131,6 +133,10 @@ func generateDefaultAdminUser(dbRepo *db.Repositories) (user *db.User, err error
 func (s *Server) Run(ctx context.Context) (err error) {
 	// Start metar service
 	go s.metarService.run(ctx)
+
+	// Start simulated-aircraft service
+	s.simManager.ctx = ctx
+	go s.simManager.run(ctx)
 
 	// Start HTTP service
 	go s.runServiceHTTP(ctx)

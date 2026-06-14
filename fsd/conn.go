@@ -74,6 +74,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	}
 	defer s.postOffice.release(client)
 
+	// Release any simulated-aircraft tracks held by this client on disconnect.
+	// The aircraft remain on the network (untracked) for another controller.
+	defer s.simManager.releaseTracksFor(client.callsign)
+
 	// Send hello message to client
 	if err = s.sendMotd(client); err != nil {
 		return

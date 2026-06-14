@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -125,6 +126,7 @@ var reservedCallsigns = []string{
 	"SERVER",
 	"CLIENT",
 	"FP",
+	"SIM",
 }
 
 func isValidClientCallsign(callsign []byte) bool {
@@ -374,6 +376,20 @@ func buildBeaconCodePacket(source, recipient, targetCallsign, beaconCode string)
 	builder.WriteString("\r\n")
 
 	return builder.String()
+}
+
+// encodePitchBankHeading packs pitch, bank, and heading (in degrees) into the
+// uint32 representation used by position update packets. It is the inverse of
+// pitchBankHeading.
+func encodePitchBankHeading(pitch, bank, heading float64) uint32 {
+	const conversionRatio float64 = 1023.0 / 359.0
+	const mask uint32 = 1023 // 0b1111111111
+
+	p := uint32(math.Round(pitch*conversionRatio)) & mask
+	b := uint32(math.Round(bank*conversionRatio)) & mask
+	h := uint32(math.Round(heading*conversionRatio)) & mask
+
+	return p<<22 | b<<12 | h<<2
 }
 
 func pitchBankHeading(packed uint32) (pitch float64, bank float64, heading float64) {
