@@ -24,9 +24,9 @@ class ScopePage extends StatefulWidget {
 
 class _ScopePageState extends State<ScopePage> {
   final _cmd = TextEditingController();
-  final ValueNotifier<String> _composeTo = ValueNotifier<String>('@49999');
 
-  String? _selected;
+  String? _selected; // aircraft being commanded
+  String? _chatTarget; // recipient for plain-text messages (set via .chat)
   bool _showMessages = true;
 
   FsdClient get client => widget.client;
@@ -34,7 +34,6 @@ class _ScopePageState extends State<ScopePage> {
   @override
   void dispose() {
     _cmd.dispose();
-    _composeTo.dispose();
     super.dispose();
   }
 
@@ -44,21 +43,40 @@ class _ScopePageState extends State<ScopePage> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ---- Command line (CRC-style dot commands + aircraft control) ----
+  void _selectAircraft(String callsign) {
+    setState(() {
+      _selected = callsign;
+      _chatTarget = null; // commanding an aircraft, not chatting
+    });
+  }
 
-  void _runCommand(String raw) {
+  // ---- Unified command line: commands and messages share one input ----
+  //
+  // Routing on submit:
+  //   .cmd …          -> CRC-style dot command (always)
+  //   SPAWN/FIX …      -> server command (always)
+  //   chat target set  -> sent as a text message to that recipient
+  //   aircraft selected-> sent as a command for that aircraft
+  //   otherwise        -> sent as a server command
+  void _submit(String raw) {
     final text = raw.trim();
     if (text.isEmpty) return;
 
     if (text.startsWith('.')) {
       _runDotCommand(text);
+      _cmd.clear();
+      return;
+    }
+
+    final firstWord = text.split(RegExp(r'\s+')).first.toUpperCase();
+    if (_globalVerbs.contains(firstWord)) {
+      client.sendSimCommand(text);
+    } else if (_chatTarget != null) {
+      client.sendText(_chatTarget!, text);
+    } else if (_selected != null) {
+      client.sendSimCommand('$_selected $text');
     } else {
-      final firstWord = text.split(RegExp(r'\s+')).first.toUpperCase();
-      if (_selected != null && !_globalVerbs.contains(firstWord)) {
-        client.sendSimCommand('$_selected $text');
-      } else {
-        client.sendSimCommand(text);
-      }
+      client.sendSimCommand(text);
     }
     _cmd.clear();
   }
@@ -82,8 +100,11 @@ class _ScopePageState extends State<ScopePage> {
           _toast('Usage: .chat <recipient>');
           return;
         }
-        _composeTo.value = _resolveRecipient(parts[1]);
-        setState(() => _showMessages = true);
+        setState(() {
+          _chatTarget = _resolveRecipient(parts[1]);
+          _selected = null;
+          _showMessages = true;
+        });
         break;
       case '.wallop':
       case '.w':
@@ -121,8 +142,6 @@ class _ScopePageState extends State<ScopePage> {
     }
   }
 
-  // Spawn at the controller's position; only asks for a callsign and the server
-  // gives the creator the track.
   Future<void> _openSpawnDialog() async {
     final callsign = TextEditingController();
 
@@ -197,10 +216,7 @@ class _ScopePageState extends State<ScopePage> {
               children: [
                 Expanded(child: _aircraftList()),
                 if (_showMessages)
-                  SizedBox(
-                    width: 360,
-                    child: MessagesPanel(client: client, composeTo: _composeTo),
-                  ),
+                  SizedBox(width: 360, child: MessagesPanel(client: client)),
               ],
             ),
           ),
@@ -259,11 +275,18 @@ class _ScopePageState extends State<ScopePage> {
             color: mine ? Colors.greenAccent : Colors.white54),
         onPressed: () => _toggleTrack(ac.callsign),
       ),
-      onTap: () => setState(() => _selected = ac.callsign),
+      onTap: () => _selectAircraft(ac.callsign),
     );
   }
 
   Widget _commandBar() {
+    final chatting = _chatTarget != null;
+    final hint = chatting
+        ? 'Message $_chatTarget   ·   .cmd to run a command'
+        : _selected != null
+            ? '$_selected: FH 270 / C 5000 / S 210   ·   .msg …'
+            : 'Command or .msg <cs> hi   ·   SPAWN AAL123';
+
     return Material(
       color: const Color(0xFF0E1411),
       child: Padding(
@@ -275,10 +298,20 @@ class _ScopePageState extends State<ScopePage> {
               icon: const Icon(Icons.add_circle, color: Colors.greenAccent),
               onPressed: _openSpawnDialog,
             ),
-            if (_selected != null)
+            if (chatting)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: InputChip(
+                  avatar: const Icon(Icons.chat_bubble_outline, size: 16),
+                  label: Text(_chatTarget!),
+                  onDeleted: () => setState(() => _chatTarget = null),
+                ),
+              )
+            else if (_selected != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InputChip(
+                  avatar: const Icon(Icons.flight, size: 16),
                   label: Text(_selected!),
                   onDeleted: () => setState(() => _selected = null),
                 ),
@@ -287,19 +320,17 @@ class _ScopePageState extends State<ScopePage> {
               child: TextField(
                 controller: _cmd,
                 textInputAction: TextInputAction.send,
-                onSubmitted: _runCommand,
+                onSubmitted: _submit,
                 decoration: InputDecoration(
                   isDense: true,
                   border: const OutlineInputBorder(),
-                  hintText: _selected == null
-                      ? 'Command   ·   .msg <cs> hi   ·   SPAWN AAL123'
-                      : '$_selected: FH 270 / C 5000 / S 210   ·   .msg …',
+                  hintText: hint,
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.send),
-              onPressed: () => _runCommand(_cmd.text),
+              onPressed: () => _submit(_cmd.text),
             ),
           ],
         ),

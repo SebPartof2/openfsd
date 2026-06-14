@@ -13,17 +13,20 @@ interface designed for clearance/ground/local positions.
   select; the track button acquires/drops its FSD track.
 - **Spawn** — one click, asks only for a callsign. The aircraft is created at
   your position and you automatically hold its track.
-- **Message window** — a dockable FSD chat panel showing all text traffic
-  (ATC chat, frequency, private, SIM, server) with an addressable send bar.
-- **CRC-style command line** handling both messaging and aircraft control:
-  - `.msg <recipient> <text>` — send a message. Recipient can be a callsign,
-    a frequency (`121.9`), `@49999` (ATC chat), or `*S` (wallop).
-  - `.chat <recipient>` — open the message panel addressed to that recipient.
-  - `.wallop <text>` — message supervisors.
-  - `.atc <text>` — broadcast on the ATC chat channel.
-  - Anything without a leading dot is an aircraft command (`FH`, `C`, `S`,
-    `DCT`, `ROUTE`, `SQ`, `VS`, `DEL`, or global `SPAWN`/`FIX`). With a target
-    selected, per-aircraft commands are auto-prefixed with its callsign.
+- **Message log** — a display-only panel showing all text traffic (ATC chat,
+  frequency, private, SIM, server), colour-coded by channel.
+- **One unified command line** for both commands and messages. Routing on send:
+  - `.cmd …` always runs a CRC-style command:
+    - `.msg <recipient> <text>` — send a message (recipient: callsign, frequency
+      like `121.9`, `@49999` for ATC chat, or `*S` for wallop).
+    - `.chat <recipient>` — enter chat mode with that recipient (a chip appears).
+    - `.wallop <text>` / `.atc <text>`.
+  - `SPAWN`/`FIX …` always run as server commands.
+  - In **chat mode** (after `.chat`), plain text is sent as a message to that
+    recipient.
+  - With an **aircraft selected**, plain text is a command for it (`FH 270`,
+    `C 5000`, `S 210`, `DCT …`, `DEL`).
+  The chip next to the input shows the current context; clear it with the ✕.
 
 ## Track-state colours
 

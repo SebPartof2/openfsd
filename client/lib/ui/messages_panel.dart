@@ -3,56 +3,24 @@ import 'package:flutter/material.dart';
 import '../fsd/fsd_client.dart';
 import '../fsd/models.dart';
 
-/// A dockable FSD message window: scrollback of all text traffic plus a send bar
-/// with an addressable recipient.
+/// Display-only FSD message log. Sending is done from the unified command line.
 class MessagesPanel extends StatefulWidget {
   final FsdClient client;
-
-  /// Externally-driven compose recipient (e.g. set by the `.chat` command).
-  final ValueNotifier<String> composeTo;
-
-  const MessagesPanel({
-    super.key,
-    required this.client,
-    required this.composeTo,
-  });
+  const MessagesPanel({super.key, required this.client});
 
   @override
   State<MessagesPanel> createState() => _MessagesPanelState();
 }
 
 class _MessagesPanelState extends State<MessagesPanel> {
-  final _to = TextEditingController(text: '@49999');
-  final _text = TextEditingController();
   final _scroll = ScrollController();
 
   FsdClient get client => widget.client;
 
   @override
-  void initState() {
-    super.initState();
-    _to.text = widget.composeTo.value;
-    widget.composeTo.addListener(_applyComposeTo);
-  }
-
-  void _applyComposeTo() => _to.text = widget.composeTo.value;
-
-  @override
   void dispose() {
-    widget.composeTo.removeListener(_applyComposeTo);
-    _to.dispose();
-    _text.dispose();
     _scroll.dispose();
     super.dispose();
-  }
-
-  void _send() {
-    final to = _to.text.trim();
-    final text = _text.text.trim();
-    if (to.isEmpty || text.isEmpty) return;
-    client.sendText(to, text);
-    _text.clear();
-    _autoScroll();
   }
 
   void _autoScroll() {
@@ -83,7 +51,6 @@ class _MessagesPanelState extends State<MessagesPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 340,
       color: const Color(0xFF0E1411),
       child: Column(
         children: [
@@ -111,60 +78,10 @@ class _MessagesPanelState extends State<MessagesPanel> {
               },
             ),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                Row(children: [
-                  SizedBox(
-                    width: 96,
-                    child: TextField(
-                      controller: _to,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        labelText: 'To',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _text,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'Message',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  IconButton(icon: const Icon(Icons.send), onPressed: _send),
-                ]),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(spacing: 6, children: [
-                    _quickTo('ATC', '@49999'),
-                    _quickTo('Wallop', '*S'),
-                    _quickTo('SIM', 'SIM'),
-                  ]),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
-
-  Widget _quickTo(String label, String value) => ActionChip(
-        label: Text(label, style: const TextStyle(fontSize: 11)),
-        onPressed: () => _to.text = value,
-        visualDensity: VisualDensity.compact,
-      );
 
   Widget _row(FsdMessage m) {
     final t =
