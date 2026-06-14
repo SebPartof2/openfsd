@@ -63,6 +63,10 @@ class FsdClient extends ChangeNotifier {
   Future<void> connect(FsdSession s) async {
     session = s;
     error = null;
+    // Start from a clean world so a previous session's targets don't linger.
+    aircraft.clear();
+    messages.clear();
+    _pendingOwn.clear();
     _login = Completer<String?>();
     _awaitingLogin = true;
     try {
@@ -103,9 +107,9 @@ class FsdClient extends ChangeNotifier {
     _sendPosition();
     _posTimer =
         Timer.periodic(const Duration(seconds: 15), (_) => _sendPosition());
-    // Periodic redraw so extrapolated positions animate between updates.
-    _renderTimer = Timer.periodic(
-        const Duration(milliseconds: 250), (_) => notifyListeners());
+    // Periodic redraw; also drop targets that have stopped updating.
+    _renderTimer =
+        Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
 
     notifyListeners();
   }
@@ -113,6 +117,16 @@ class FsdClient extends ChangeNotifier {
   void _completeLogin(String? loginError) {
     _awaitingLogin = false;
     if (!_login.isCompleted) _login.complete(loginError);
+  }
+
+  /// Targets that stop updating for this long are dropped (covers a missed
+  /// delete packet). Simulated aircraft broadcast ~1 Hz.
+  static const _staleAfter = Duration(seconds: 30);
+
+  void _tick() {
+    final now = DateTime.now();
+    aircraft.removeWhere((_, ac) => now.difference(ac.lastUpdate) > _staleAfter);
+    notifyListeners();
   }
 
   void disconnect() {
