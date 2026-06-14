@@ -18,7 +18,7 @@ class _ConnectPageState extends State<ConnectPage> {
   final _cid = TextEditingController(text: '1');
   final _password = TextEditingController();
   final _rating = TextEditingController(text: '12');
-  final _facility = TextEditingController(text: '5');
+  final _facility = TextEditingController(text: '3');
   final _lat = TextEditingController(text: '34.0');
   final _lon = TextEditingController(text: '-118.0');
   final _vis = TextEditingController(text: '500');

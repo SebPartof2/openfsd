@@ -8,8 +8,10 @@ aircraft**.
 ## Features
 
 - Connects as a real FSD controller (no special API needed).
-- Live radar scope on OpenStreetMap tiles (`flutter_map`), with client-side
-  extrapolation so targets glide smoothly between updates.
+- Live radar scope on satellite imagery (`flutter_map` + Esri World Imagery),
+  tuned for ground/local/clearance: it opens zoomed to the airport and the
+  camera stays in the field. Client-side extrapolation keeps targets gliding
+  smoothly between updates.
 - **Navdata layer**: airports, VOR/NDB navaids, and enroute fixes rendered on the
   scope (viewport-culled, labels at higher zoom). Loaded from standard free data.
 - **Message window**: a dockable FSD chat panel showing all text traffic

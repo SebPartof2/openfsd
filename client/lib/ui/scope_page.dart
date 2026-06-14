@@ -317,17 +317,31 @@ class _ScopePageState extends State<ScopePage> {
                       mapController: _mapController,
                       options: MapOptions(
                         initialCenter: s.center,
-                        initialZoom: 7,
+                        initialZoom: 14,
+                        minZoom: 11,
+                        maxZoom: 19,
+                        // Keep the scope on the airport (ground/local/clearance).
+                        cameraConstraint: CameraConstraint.contain(
+                          bounds: LatLngBounds(
+                            LatLng(s.center.latitude - 0.4,
+                                s.center.longitude - 0.4),
+                            LatLng(s.center.latitude + 0.4,
+                                s.center.longitude + 0.4),
+                          ),
+                        ),
                         onTap: _onMapTap,
                         onLongPress: _onMapLongPress,
                         onSecondaryTap: _onMapLongPress,
                         onMapReady: () => setState(() => _mapReady = true),
                       ),
                       children: [
+                        // Satellite imagery shows taxiways/gates/runways for
+                        // surface control.
                         TileLayer(
                           urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                           userAgentPackageName: 'com.openvector.client',
+                          maxNativeZoom: 19,
                         ),
                         MarkerLayer(markers: _buildNavMarkers()),
                         MarkerLayer(markers: _buildAircraftMarkers()),
