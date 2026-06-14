@@ -21,9 +21,16 @@ aircraft**.
 - **Spawn** mode: tap the map to create an aircraft at that point.
 - **Right-click / long-press** the map to send the selected aircraft direct to
   that point.
-- Command bar speaks the OpenVector `SIM` command set (`FH`, `C`, `S`, `DCT`,
-  `ROUTE`, `SQ`, `VS`, `DEL`, plus global `SPAWN`/`FIX`). With a target selected,
-  per-aircraft commands are auto-prefixed with its callsign.
+- Single floating command line (CRC-style). It handles both **messaging dot
+  commands** and **aircraft control**:
+  - `.msg <recipient> <text>` — send a message. Recipient can be a callsign,
+    a frequency (`121.9`), `@49999` (ATC chat), or `*S` (wallop).
+  - `.chat <recipient>` — open the message panel addressed to that recipient.
+  - `.wallop <text>` — message supervisors.
+  - `.atc <text>` — broadcast on the ATC chat channel.
+  - Anything without a leading dot is an aircraft command (`FH`, `C`, `S`,
+    `DCT`, `ROUTE`, `SQ`, `VS`, `DEL`, or global `SPAWN`/`FIX`). With a target
+    selected, per-aircraft commands are auto-prefixed with its callsign.
 
 ## Navdata
 

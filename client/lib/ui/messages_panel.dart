@@ -7,7 +7,15 @@ import '../fsd/models.dart';
 /// with an addressable recipient.
 class MessagesPanel extends StatefulWidget {
   final FsdClient client;
-  const MessagesPanel({super.key, required this.client});
+
+  /// Externally-driven compose recipient (e.g. set by the `.chat` command).
+  final ValueNotifier<String> composeTo;
+
+  const MessagesPanel({
+    super.key,
+    required this.client,
+    required this.composeTo,
+  });
 
   @override
   State<MessagesPanel> createState() => _MessagesPanelState();
@@ -19,6 +27,24 @@ class _MessagesPanelState extends State<MessagesPanel> {
   final _scroll = ScrollController();
 
   FsdClient get client => widget.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _to.text = widget.composeTo.value;
+    widget.composeTo.addListener(_applyComposeTo);
+  }
+
+  void _applyComposeTo() => _to.text = widget.composeTo.value;
+
+  @override
+  void dispose() {
+    widget.composeTo.removeListener(_applyComposeTo);
+    _to.dispose();
+    _text.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
 
   void _send() {
     final to = _to.text.trim();
