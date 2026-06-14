@@ -58,6 +58,55 @@ double headingFromPbh(int pbh) {
   return headingBits * 359.0 / 1023.0;
 }
 
+/// Another controller online on the network.
+class Controller {
+  final String callsign;
+  String frequency; // raw FSD frequency field, e.g. "19900"
+  int facility;
+  DateTime lastUpdate;
+
+  Controller({
+    required this.callsign,
+    this.frequency = '',
+    this.facility = 0,
+    DateTime? lastUpdate,
+  }) : lastUpdate = lastUpdate ?? DateTime.now();
+
+  /// Frequency formatted as MHz, e.g. "19900" -> "119.900".
+  String get frequencyMhz {
+    if (frequency.isEmpty) return '';
+    final full = '1$frequency';
+    if (full.length < 4) return frequency;
+    return '${full.substring(0, 3)}.${full.substring(3)}';
+  }
+
+  String get facilityName {
+    switch (facility) {
+      case 1:
+        return 'FSS';
+      case 2:
+        return 'DEL';
+      case 3:
+        return 'GND';
+      case 4:
+        return 'TWR';
+      case 5:
+        return 'APP';
+      case 6:
+        return 'CTR';
+      default:
+        return 'OBS';
+    }
+  }
+}
+
+/// A handoff offered to us by another controller.
+class PendingHandoff {
+  final String from;
+  final String aircraft;
+  PendingHandoff(this.from, this.aircraft);
+}
+
 /// A received or sent text message.
 class FsdMessage {
   final String from;

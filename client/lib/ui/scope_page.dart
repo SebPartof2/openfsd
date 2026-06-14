@@ -26,7 +26,7 @@ class _ScopePageState extends State<ScopePage> {
   final _cmd = TextEditingController();
 
   String? _selected; // aircraft being commanded
-  String? _chatTarget; // recipient for plain-text messages (set via .chat)
+  String? _chatTarget; // active conversation / message recipient
   bool _showMessages = true;
 
   FsdClient get client => widget.client;
@@ -46,18 +46,24 @@ class _ScopePageState extends State<ScopePage> {
   void _selectAircraft(String callsign) {
     setState(() {
       _selected = callsign;
-      _chatTarget = null; // commanding an aircraft, not chatting
+      _chatTarget = null;
     });
   }
 
+  void _openChat(String recipient) {
+    client.openConversation(recipient);
+    setState(() {
+      _chatTarget = recipient;
+      _selected = null;
+      _showMessages = true;
+    });
+  }
+
+  bool _ownsSelected() =>
+      _selected != null &&
+      client.aircraft[_selected]?.trackedBy == client.myCallsign;
+
   // ---- Unified command line: commands and messages share one input ----
-  //
-  // Routing on submit:
-  //   .cmd …          -> CRC-style dot command (always)
-  //   SPAWN/FIX …      -> server command (always)
-  //   chat target set  -> sent as a text message to that recipient
-  //   aircraft selected-> sent as a command for that aircraft
-  //   otherwise        -> sent as a server command
   void _submit(String raw) {
     final text = raw.trim();
     if (text.isEmpty) return;
@@ -92,7 +98,9 @@ class _ScopePageState extends State<ScopePage> {
           _toast('Usage: .msg <recipient> <message>');
           return;
         }
-        client.sendText(_resolveRecipient(parts[1]), parts.sublist(2).join(' '));
+        final to = _resolveRecipient(parts[1]);
+        client.sendText(to, parts.sublist(2).join(' '));
+        _openChat(to);
         break;
       case '.chat':
       case '.c':
@@ -100,11 +108,7 @@ class _ScopePageState extends State<ScopePage> {
           _toast('Usage: .chat <recipient>');
           return;
         }
-        setState(() {
-          _chatTarget = _resolveRecipient(parts[1]);
-          _selected = null;
-          _showMessages = true;
-        });
+        _openChat(_resolveRecipient(parts[1]));
         break;
       case '.wallop':
       case '.w':
@@ -118,6 +122,23 @@ class _ScopePageState extends State<ScopePage> {
         if (parts.length >= 2) {
           client.sendText('@49999', parts.sublist(1).join(' '));
         }
+        break;
+      case '.ho':
+      case '.handoff':
+        if (_selected == null) {
+          _toast('Select an aircraft you control first');
+          return;
+        }
+        if (!_ownsSelected()) {
+          _toast('You do not control $_selected');
+          return;
+        }
+        if (parts.length < 2) {
+          _toast('Usage: .ho <controller>');
+          return;
+        }
+        client.initiateHandoff(_selected!, parts[1]);
+        _toast('Handoff $_selected → ${parts[1].toUpperCase()}');
         break;
       default:
         _toast('Unknown command: $cmd');
@@ -189,16 +210,6 @@ class _ScopePageState extends State<ScopePage> {
           ],
         ),
         actions: [
-          ListenableBuilder(
-            listenable: client,
-            builder: (_, __) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Center(
-                child: Text('${client.aircraft.length} tgt',
-                    style: const TextStyle(color: Colors.greenAccent)),
-              ),
-            ),
-          ),
           IconButton(
             tooltip: 'Messages',
             icon: Icon(_showMessages ? Icons.forum : Icons.forum_outlined),
@@ -213,12 +224,23 @@ class _ScopePageState extends State<ScopePage> {
       ),
       body: Column(
         children: [
+          _handoffBanner(),
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _aircraftList()),
+                Expanded(child: _leftPanel()),
                 if (_showMessages)
-                  SizedBox(width: 360, child: MessagesPanel(client: client)),
+                  SizedBox(
+                    width: 360,
+                    child: MessagesPanel(
+                      client: client,
+                      activeId: _chatTarget,
+                      onSelect: (id) => setState(() {
+                        _chatTarget = id;
+                        _selected = null;
+                      }),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -228,27 +250,79 @@ class _ScopePageState extends State<ScopePage> {
     );
   }
 
-  Widget _aircraftList() {
-    return Container(
-      color: const Color(0xFF0B0F0D),
-      child: ListenableBuilder(
-        listenable: client,
-        builder: (_, __) {
-          final list = client.aircraft.values.toList()
-            ..sort((a, b) => a.callsign.compareTo(b.callsign));
-          if (list.isEmpty) {
-            return const Center(
-              child: Text('No aircraft — Spawn one',
-                  style: TextStyle(color: Colors.white38)),
-            );
-          }
-          return ListView.separated(
-            itemCount: list.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (_, i) => _aircraftRow(list[i]),
-          );
-        },
+  Widget _handoffBanner() {
+    return ListenableBuilder(
+      listenable: client,
+      builder: (_, __) {
+        if (client.pendingHandoffs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          children: [
+            for (final ph in client.pendingHandoffs)
+              Container(
+                color: const Color(0xFF3A2E00),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.swap_horiz, color: Colors.amberAccent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                          'Handoff: ${ph.aircraft} from ${ph.from}'),
+                    ),
+                    TextButton(
+                      onPressed: () => client.acceptHandoff(ph),
+                      child: const Text('Accept'),
+                    ),
+                    TextButton(
+                      onPressed: () => client.rejectHandoff(ph),
+                      child: const Text('Reject'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _leftPanel() {
+    return DefaultTabController(
+      length: 2,
+      child: Container(
+        color: const Color(0xFF0B0F0D),
+        child: ListenableBuilder(
+          listenable: client,
+          builder: (_, __) => Column(
+            children: [
+              TabBar(tabs: [
+                Tab(text: 'Aircraft ${client.aircraft.length}'),
+                Tab(text: 'ATC ${client.controllers.length}'),
+              ]),
+              Expanded(
+                child: TabBarView(
+                  children: [_aircraftList(), _controllerList()],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _aircraftList() {
+    final list = client.aircraft.values.toList()
+      ..sort((a, b) => a.callsign.compareTo(b.callsign));
+    if (list.isEmpty) {
+      return const Center(
+          child: Text('No aircraft — Spawn one',
+              style: TextStyle(color: Colors.white38)));
+    }
+    return ListView.separated(
+      itemCount: list.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) => _aircraftRow(list[i]),
     );
   }
 
@@ -281,12 +355,49 @@ class _ScopePageState extends State<ScopePage> {
     );
   }
 
+  Widget _controllerList() {
+    final list = client.controllers.values.toList()
+      ..sort((a, b) => a.callsign.compareTo(b.callsign));
+    if (list.isEmpty) {
+      return const Center(
+          child: Text('No other controllers online',
+              style: TextStyle(color: Colors.white38)));
+    }
+    return ListView.separated(
+      itemCount: list.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        final c = list[i];
+        final canHandoff = _ownsSelected();
+        return ListTile(
+          dense: true,
+          leading: const Icon(Icons.headset_mic, size: 18),
+          title: Text(c.callsign,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${c.facilityName}   ${c.frequencyMhz}',
+              style: const TextStyle(fontSize: 12)),
+          trailing: canHandoff
+              ? IconButton(
+                  tooltip: 'Handoff $_selected to ${c.callsign}',
+                  icon: const Icon(Icons.swap_horiz),
+                  onPressed: () {
+                    client.initiateHandoff(_selected!, c.callsign);
+                    _toast('Handoff $_selected → ${c.callsign}');
+                  },
+                )
+              : null,
+          onTap: () => _openChat(c.callsign),
+        );
+      },
+    );
+  }
+
   Widget _commandBar() {
     final chatting = _chatTarget != null;
     final hint = chatting
         ? 'Message $_chatTarget   ·   .cmd to run a command'
         : _selected != null
-            ? '$_selected: FH 270 / C 5000 / S 210   ·   .msg …'
+            ? '$_selected: FH 270 / C 5000 / .ho <atc>'
             : 'Command or .msg <cs> hi   ·   SPAWN AAL123';
 
     return Material(

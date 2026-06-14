@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/renorris/openfsd/db"
 )
 
@@ -42,6 +44,9 @@ type simAircraft struct {
 	navMode      navMode
 	route        []waypoint
 	climbRateFpm int
+
+	// Controller a pending handoff has been offered to ("" = none).
+	pendingHandoff atomic.String
 }
 
 // simManager owns all server-side simulated aircraft.
@@ -259,12 +264,18 @@ func (m *simManager) releaseTracksFor(controller string) {
 	}
 }
 
-// setTrack records the controller currently holding an aircraft's track. Called
-// when the server observes an Initiate Track (IT) or handoff acceptance (HT).
-func (m *simManager) setTrack(callsign, controller string) {
-	if ac := m.find(callsign); ac != nil {
-		ac.controllingController.Store(controller)
+// acquireTrack gives a controller an aircraft's track only if it is currently
+// untracked (or already theirs). Returns false if another controller holds it,
+// which prevents one controller from stealing another's track.
+func (m *simManager) acquireTrack(callsign, controller string) bool {
+	ac := m.find(callsign)
+	if ac == nil {
+		return false
 	}
+	if ac.controllingController.Load() == controller {
+		return true
+	}
+	return ac.controllingController.CompareAndSwap("", controller)
 }
 
 // dropTrack clears an aircraft's track if it is currently held by controller.
@@ -274,6 +285,30 @@ func (m *simManager) dropTrack(callsign, controller string) {
 			ac.controllingController.Store("")
 		}
 	}
+}
+
+// offerHandoff records that the current owner is handing an aircraft off to
+// another controller. Only the current owner may initiate a handoff.
+func (m *simManager) offerHandoff(callsign, from, to string) bool {
+	ac := m.find(callsign)
+	if ac == nil || ac.controllingController.Load() != from {
+		return false
+	}
+	ac.pendingHandoff.Store(to)
+	return true
+}
+
+// acceptHandoff transfers the track to a controller a handoff was offered to.
+// Returns false if there is no pending handoff for that controller, which
+// prevents acquiring a track via handoff acceptance without an offer.
+func (m *simManager) acceptHandoff(callsign, controller string) bool {
+	ac := m.find(callsign)
+	if ac == nil || ac.pendingHandoff.Load() != controller {
+		return false
+	}
+	ac.controllingController.Store(controller)
+	ac.pendingHandoff.Store("")
+	return true
 }
 
 // defineFix registers (or replaces) a named navigation fix.

@@ -8,13 +8,20 @@ interface designed for clearance/ground/local positions.
 ## Features
 
 - Connects as a real FSD controller (no special API needed).
-- **Aircraft list** — the main view. Every target shows a track-state colour,
-  flight level, groundspeed, heading, squawk, and owning controller. Tap to
-  select; the track button acquires/drops its FSD track.
+- **Aircraft / ATC tabs** — *Aircraft* shows every target (track-state colour,
+  FL, speed, heading, squawk, owner) with a track button. *ATC* lists other
+  online controllers (facility + frequency); tap one to open a direct chat, or
+  use the ⇄ button to hand off your selected aircraft to them.
+- **Track ownership** — the Track button only works on an untracked aircraft;
+  you can't steal another controller's track. Transfers go through handoff.
+- **Handoff** — `.ho <controller>` (or the ⇄ button) offers your selected
+  aircraft; the receiver gets an Accept/Reject banner and accepting takes the
+  track.
 - **Spawn** — one click, asks only for a callsign. The aircraft is created at
   your position and you automatically hold its track.
-- **Message log** — a display-only panel showing all text traffic (ATC chat,
-  frequency, private, SIM, server), colour-coded by channel.
+- **Tabbed messages** — one thread per conversation (direct controller, ATC
+  chat, frequency, SIM, server). `.msg`/`.chat` or tapping a controller opens a
+  direct tab; the active tab is your reply target.
 - **One unified command line** for both commands and messages. Routing on send:
   - `.cmd …` always runs a CRC-style command:
     - `.msg <recipient> <text>` — send a message (recipient: callsign, frequency

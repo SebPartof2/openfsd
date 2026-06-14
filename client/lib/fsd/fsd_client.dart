@@ -41,7 +41,12 @@ class FsdClient extends ChangeNotifier {
   String _buffer = '';
 
   final Map<String, Aircraft> aircraft = {};
-  final List<FsdMessage> messages = [];
+  final Map<String, Controller> controllers = {};
+  final List<PendingHandoff> pendingHandoffs = [];
+
+  // Message threads keyed by the other party (callsign / channel recipient).
+  final Map<String, List<FsdMessage>> conversations = {};
+  final List<String> conversationOrder = [];
 
   // Callsigns we just spawned: mark them tracked by us once they appear.
   final Set<String> _pendingOwn = {};
@@ -63,9 +68,12 @@ class FsdClient extends ChangeNotifier {
   Future<void> connect(FsdSession s) async {
     session = s;
     error = null;
-    // Start from a clean world so a previous session's targets don't linger.
+    // Start from a clean world so a previous session's state doesn't linger.
     aircraft.clear();
-    messages.clear();
+    controllers.clear();
+    pendingHandoffs.clear();
+    conversations.clear();
+    conversationOrder.clear();
     _pendingOwn.clear();
     _login = Completer<String?>();
     _awaitingLogin = true;
@@ -123,9 +131,13 @@ class FsdClient extends ChangeNotifier {
   /// delete packet). Simulated aircraft broadcast ~1 Hz.
   static const _staleAfter = Duration(seconds: 30);
 
+  static const _controllerStaleAfter = Duration(seconds: 60);
+
   void _tick() {
     final now = DateTime.now();
     aircraft.removeWhere((_, ac) => now.difference(ac.lastUpdate) > _staleAfter);
+    controllers.removeWhere(
+        (_, c) => now.difference(c.lastUpdate) > _controllerStaleAfter);
     notifyListeners();
   }
 
@@ -188,12 +200,20 @@ class FsdClient extends ChangeNotifier {
   }
 
   /// Sends a text message to an arbitrary recipient (callsign, "@49999" for ATC
-  /// chat, "@18700" for a frequency, "SIM", etc.) and echoes it locally.
+  /// chat, "@18700" for a frequency, "SIM", etc.) and records it locally.
   void sendText(String to, String text) {
     final s = session;
     if (s == null || to.isEmpty || text.isEmpty) return;
     _send('#TM${s.callsign}:$to:$text');
-    messages.add(FsdMessage(s.callsign, to, text));
+    _record(FsdMessage(s.callsign, to, text));
+  }
+
+  /// Ensures a conversation thread exists (e.g. when opening a direct tab).
+  void openConversation(String id) {
+    conversations.putIfAbsent(id, () {
+      conversationOrder.add(id);
+      return <FsdMessage>[];
+    });
     notifyListeners();
   }
 
@@ -203,23 +223,59 @@ class FsdClient extends ChangeNotifier {
     return digits.length > 1 ? '@${digits.substring(1)}' : '@$digits';
   }
 
+  // The server is authoritative for sim-aircraft tracks and echoes the change
+  // back, so these just send the request.
   void initiateTrack(String target) {
     final s = session;
     if (s == null) return;
     _send('\$CQ${s.callsign}:@94835:IT:$target');
-    // The server does not echo our own track broadcast back to us, so reflect
-    // it locally for immediate feedback.
-    aircraft[target]?.trackedBy = s.callsign;
-    notifyListeners();
   }
 
   void dropTrack(String target) {
     final s = session;
     if (s == null) return;
     _send('\$CQ${s.callsign}:@94835:DR:$target');
-    final ac = aircraft[target];
-    if (ac != null && ac.trackedBy == s.callsign) ac.trackedBy = null;
+  }
+
+  /// Offers a handoff of [target] to controller [to] (you must hold the track).
+  void initiateHandoff(String target, String to) {
+    final s = session;
+    if (s == null) return;
+    _send('\$HO${s.callsign}:${to.toUpperCase()}:$target');
+  }
+
+  /// Accepts an offered handoff: notify the offerer and take the track (HT).
+  void acceptHandoff(PendingHandoff ph) {
+    final s = session;
+    if (s == null) return;
+    _send('\$HA${s.callsign}:${ph.from}:${ph.aircraft}');
+    _send('\$CQ${s.callsign}:@94835:HT:${ph.aircraft}');
+    pendingHandoffs.remove(ph);
     notifyListeners();
+  }
+
+  void rejectHandoff(PendingHandoff ph) {
+    pendingHandoffs.remove(ph);
+    notifyListeners();
+  }
+
+  // --- Conversation recording ---
+
+  void _record(FsdMessage m) {
+    final id = _conversationId(m);
+    final list = conversations.putIfAbsent(id, () {
+      conversationOrder.add(id);
+      return <FsdMessage>[];
+    });
+    list.add(m);
+    if (list.length > 500) list.removeAt(0);
+    notifyListeners();
+  }
+
+  String _conversationId(FsdMessage m) {
+    if (m.from == myCallsign) return m.to; // outbound -> the recipient
+    if (m.to == myCallsign) return m.from; // direct -> the sender
+    return m.to; // channel (@49999, @freq, *S)
   }
 
   // --- Inbound parsing ---
@@ -254,24 +310,57 @@ class FsdClient extends ChangeNotifier {
 
     if (head.startsWith('@')) {
       _handlePosition(f);
+    } else if (head.startsWith('%')) {
+      _handleAtcPosition(f);
     } else if (head.startsWith('#AP')) {
       // Aircraft add. We plot it once its first position arrives.
     } else if (head.startsWith('#DP')) {
       aircraft.remove(head.substring(3));
       notifyListeners();
+    } else if (head.startsWith('#AA')) {
+      final cs = head.substring(3);
+      if (cs != myCallsign) {
+        controllers.putIfAbsent(cs, () => Controller(callsign: cs)).lastUpdate =
+            DateTime.now();
+        notifyListeners();
+      }
+    } else if (head.startsWith('#DA')) {
+      controllers.remove(head.substring(3));
+      notifyListeners();
     } else if (head.startsWith('#TM')) {
       _handleText(f);
     } else if (head.startsWith('\$CQ')) {
       _handleClientQuery(f);
+    } else if (head.startsWith('\$HO')) {
+      _handleHandoffRequest(f);
     } else if (head.startsWith('\$ER')) {
       final msg = f.length >= 5 ? f.sublist(4).join(':') : line;
-      _addMessage('server', myCallsign, 'ERROR: $msg');
+      _record(FsdMessage('server', myCallsign, 'ERROR: $msg'));
     }
   }
 
-  void _addMessage(String from, String to, String text) {
-    messages.add(FsdMessage(from, to, text));
-    if (messages.length > 500) messages.removeAt(0);
+  // %CALLSIGN:FREQ:FACILITY:VISRANGE:RATING:LAT:LON:ALT
+  void _handleAtcPosition(List<String> f) {
+    final cs = f[0].substring(1);
+    if (cs.isEmpty || cs == myCallsign) return;
+    final c = controllers.putIfAbsent(cs, () => Controller(callsign: cs));
+    if (f.length > 1) c.frequency = f[1];
+    if (f.length > 2) c.facility = int.tryParse(f[2]) ?? c.facility;
+    c.lastUpdate = DateTime.now();
+    notifyListeners();
+  }
+
+  // $HO<FROM>:<TO>:<TARGET>
+  void _handleHandoffRequest(List<String> f) {
+    if (f.length < 3) return;
+    final from = f[0].substring(3);
+    final to = f[1];
+    final target = f[2];
+    if (to != myCallsign) return;
+    if (pendingHandoffs.any((h) => h.aircraft == target && h.from == from)) {
+      return;
+    }
+    pendingHandoffs.add(PendingHandoff(from, target));
     notifyListeners();
   }
 
@@ -340,7 +429,7 @@ class FsdClient extends ChangeNotifier {
     final from = f[0].substring(3);
     final to = f[1];
     final msg = f.sublist(2).join(':');
-    _addMessage(from, to, msg);
+    _record(FsdMessage(from, to, msg));
   }
 
   @override

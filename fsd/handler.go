@@ -322,12 +322,28 @@ func (s *Server) handleClientQuery(client *Client, packet []byte) {
 			return
 		}
 
-		// Track maneuver authority over simulated aircraft as it changes hands.
-		switch string(queryType) {
-		case "IT", "HT": // Initiate track / acquire via handoff
-			s.simManager.setTrack(string(getField(packet, 3)), client.callsign)
-		case "DR": // Drop track
-			s.simManager.dropTrack(string(getField(packet, 3)), client.callsign)
+		// The server is authoritative for simulated-aircraft track ownership.
+		// Echo the accepted change back to the requester so their client updates
+		// (the normal forward below reaches the other in-range controllers).
+		target := string(getField(packet, 3))
+		if ac := s.simManager.find(target); ac != nil {
+			switch string(queryType) {
+			case "IT": // Initiate track — only on an untracked aircraft
+				if !s.simManager.acquireTrack(target, client.callsign) {
+					client.sendError(InvalidControlError, "Aircraft already tracked by another controller")
+					return
+				}
+				client.send(string(packet))
+			case "HT": // Acquire via handoff — only if one was offered to you
+				if !s.simManager.acceptHandoff(target, client.callsign) {
+					client.sendError(InvalidControlError, "No pending handoff for this aircraft")
+					return
+				}
+				client.send(string(packet))
+			case "DR": // Drop track
+				s.simManager.dropTrack(target, client.callsign)
+				client.send(string(packet))
+			}
 		}
 
 		forwardClientQuery(s.postOffice, client, packet)
@@ -481,6 +497,14 @@ func (s *Server) handleHandoff(client *Client, packet []byte) {
 	}
 
 	recipient := getField(packet, 1)
+
+	// On a handoff request for a simulated aircraft, record the pending handoff
+	// so the recipient can later accept it (and nobody else can).
+	if getPacketType(packet) == PacketTypeHandoffRequest {
+		target := string(getField(packet, 2))
+		s.simManager.offerHandoff(target, client.callsign, string(recipient))
+	}
+
 	sendDirectOrErr(s.postOffice, client, recipient, packet)
 }
 
