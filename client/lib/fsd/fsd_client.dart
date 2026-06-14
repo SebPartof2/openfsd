@@ -41,7 +41,7 @@ class FsdClient extends ChangeNotifier {
   String _buffer = '';
 
   final Map<String, Aircraft> aircraft = {};
-  final List<String> messages = [];
+  final List<FsdMessage> messages = [];
 
   bool connected = false;
   String? error;
@@ -161,6 +161,22 @@ class FsdClient extends ChangeNotifier {
     _send('#TM${s.callsign}:SIM:$cmd');
   }
 
+  /// Sends a text message to an arbitrary recipient (callsign, "@49999" for ATC
+  /// chat, "@18700" for a frequency, "SIM", etc.) and echoes it locally.
+  void sendText(String to, String text) {
+    final s = session;
+    if (s == null || to.isEmpty || text.isEmpty) return;
+    _send('#TM${s.callsign}:$to:$text');
+    messages.add(FsdMessage(s.callsign, to, text));
+    notifyListeners();
+  }
+
+  /// Converts a frequency like "118.700" to its FSD message recipient "@18700".
+  static String frequencyRecipient(String mhz) {
+    final digits = mhz.replaceAll('.', '');
+    return digits.length > 1 ? '@${digits.substring(1)}' : '@$digits';
+  }
+
   void initiateTrack(String target) {
     final s = session;
     if (s == null) return;
@@ -222,9 +238,15 @@ class FsdClient extends ChangeNotifier {
     } else if (head.startsWith('\$CQ')) {
       _handleClientQuery(f);
     } else if (head.startsWith('\$ER')) {
-      messages.add('ERROR: ${f.length > 3 ? f.sublist(3).join(':') : line}');
-      notifyListeners();
+      final msg = f.length >= 5 ? f.sublist(4).join(':') : line;
+      _addMessage('server', myCallsign, 'ERROR: $msg');
     }
+  }
+
+  void _addMessage(String from, String to, String text) {
+    messages.add(FsdMessage(from, to, text));
+    if (messages.length > 500) messages.removeAt(0);
+    notifyListeners();
   }
 
   // $CQ<FROM>:<RECIPIENT>:<TYPE>:<TARGET>
@@ -285,10 +307,9 @@ class FsdClient extends ChangeNotifier {
   void _handleText(List<String> f) {
     if (f.length < 3) return;
     final from = f[0].substring(3);
+    final to = f[1];
     final msg = f.sublist(2).join(':');
-    messages.add('$from: $msg');
-    if (messages.length > 200) messages.removeAt(0);
-    notifyListeners();
+    _addMessage(from, to, msg);
   }
 
   @override

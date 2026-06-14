@@ -57,3 +57,23 @@ double headingFromPbh(int pbh) {
   final headingBits = (pbh >> 2) & 1023;
   return headingBits * 359.0 / 1023.0;
 }
+
+/// A received or sent text message.
+class FsdMessage {
+  final String from;
+  final String to;
+  final String text;
+  final DateTime time;
+
+  FsdMessage(this.from, this.to, this.text) : time = DateTime.now();
+
+  /// Short category label for display.
+  String get channel {
+    if (from.toLowerCase() == 'server') return 'SERVER';
+    if (from == 'SIM') return 'SIM';
+    if (to == '@49999') return 'ATC';
+    if (to.startsWith('@')) return 'FREQ';
+    if (to == '*S') return 'WALLOP';
+    return 'MSG';
+  }
+}

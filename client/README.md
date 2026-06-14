@@ -5,17 +5,35 @@ with Flutter. It connects to an OpenVector/FSD server, renders live traffic on a
 OpenStreetMap scope, and lets controllers **create and vector simulated
 aircraft**.
 
-## Features (MVP)
+## Features
 
 - Connects as a real FSD controller (no special API needed).
 - Live radar scope on OpenStreetMap tiles (`flutter_map`), with client-side
   extrapolation so targets glide smoothly between updates.
+- **Navdata layer**: airports, VOR/NDB navaids, and enroute fixes rendered on the
+  scope (viewport-culled, labels at higher zoom). Loaded from standard free data.
+- **Message window**: a dockable FSD chat panel showing all text traffic
+  (ATC chat, frequency, private, SIM, server) and an addressable send bar.
 - Tap a target to select it; **Track** acquires its FSD track (required to
-  command it).
+  command it). Track ownership of every target is shown (see legend below).
 - **Spawn** mode: tap the map to create an aircraft at that point.
+- **Right-click / long-press** the map to send the selected aircraft direct to
+  that point.
 - Command bar speaks the OpenVector `SIM` command set (`FH`, `C`, `S`, `DCT`,
   `ROUTE`, `SQ`, `VS`, `DEL`, plus global `SPAWN`/`FIX`). With a target selected,
   per-aircraft commands are auto-prefixed with its callsign.
+
+## Navdata
+
+The scope ships with no bundled navdata; load free datasets via the **folder**
+icon in the toolbar (paste absolute file paths):
+
+- **Airports / navaids** — [OurAirports](https://github.com/davidmegginson/ourairports-data)
+  `airports.csv` and `navaids.csv` (public domain).
+- **Enroute fixes** — X-Plane `earth_fix.dat` (ships with X-Plane).
+
+Loaded points are rendered with viewport culling (fixes appear as you zoom in).
+Toggle the layer with the **layers** icon.
 
 ## Reading the scope
 
