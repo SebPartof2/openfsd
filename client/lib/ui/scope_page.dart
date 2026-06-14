@@ -375,21 +375,33 @@ class _ScopePageState extends State<ScopePage> {
   }
 
   Widget _leftPanel() {
+    final isSup = client.session?.isSupervisor ?? false;
     return DefaultTabController(
-      length: 2,
+      length: isSup ? 3 : 2,
       child: Container(
         color: const Color(0xFF0B0F0D),
         child: ListenableBuilder(
           listenable: client,
           builder: (_, __) => Column(
             children: [
-              TabBar(tabs: [
-                Tab(text: 'Aircraft ${client.aircraft.length}'),
-                Tab(text: 'ATC ${client.controllers.length}'),
-              ]),
+              TabBar(
+                isScrollable: isSup,
+                tabs: [
+                  Tab(text: 'Aircraft ${client.aircraft.length}'),
+                  Tab(text: 'ATC ${client.controllers.length}'),
+                  if (isSup)
+                    Tab(
+                        text: 'Network '
+                            '${client.networkControllers.length + client.networkPilots.length}'),
+                ],
+              ),
               Expanded(
                 child: TabBarView(
-                  children: [_aircraftList(), _controllerList()],
+                  children: [
+                    _aircraftList(),
+                    _controllerList(),
+                    if (isSup) _networkList(),
+                  ],
                 ),
               ),
             ],
@@ -397,6 +409,85 @@ class _ScopePageState extends State<ScopePage> {
         ),
       ),
     );
+  }
+
+  Widget _sectionHeader(String text) => Container(
+        width: double.infinity,
+        color: Colors.white10,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Text(text,
+            style: const TextStyle(
+                fontSize: 11,
+                letterSpacing: 1,
+                fontWeight: FontWeight.bold,
+                color: Colors.white70)),
+      );
+
+  Widget _netKickButton(String callsign) => IconButton(
+        tooltip: 'Kick',
+        iconSize: 20,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32),
+        icon: const Icon(Icons.gpp_bad, color: Colors.redAccent),
+        onPressed: () => _confirmKick(callsign),
+      );
+
+  Widget _networkList() {
+    final controllers = client.networkControllers;
+    final pilots = client.networkPilots;
+    if (controllers.isEmpty && pilots.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Waiting for datafeed…\nCheck the Datafeed URL.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white38)),
+        ),
+      );
+    }
+    return ListView(
+      children: [
+        _sectionHeader('CONTROLLERS (${controllers.length})'),
+        for (final c in controllers)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.headset_mic, size: 18),
+            title: Text(c.callsign,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(
+                '${facilityLabel(c.facility)}  ${frequencyMhz(c.frequency)}'
+                '${c.name.isNotEmpty ? '  ·  ${c.name}' : ''}',
+                style: const TextStyle(fontSize: 12)),
+            trailing: _netKickButton(c.callsign),
+            onTap: () => _openChat(c.callsign),
+          ),
+        _sectionHeader('PILOTS (${pilots.length})'),
+        for (final p in pilots)
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.flight,
+                size: 18,
+                color: p.controller.isNotEmpty
+                    ? Colors.greenAccent
+                    : Colors.lightBlueAccent),
+            title: Text(p.callsign,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_netPilotDetail(p),
+                style: const TextStyle(fontSize: 12)),
+            trailing: _netKickButton(p.callsign),
+            onTap: () => _openChat(p.callsign),
+          ),
+      ],
+    );
+  }
+
+  String _netPilotDetail(NetPilot p) {
+    final fl = (p.altitude / 100).round().toString().padLeft(3, '0');
+    final route = (p.dep.isNotEmpty || p.dest.isNotEmpty)
+        ? '   ${p.dep.isEmpty ? '?' : p.dep}→${p.dest.isEmpty ? '?' : p.dest}'
+        : '';
+    final ctrl = p.controller.isNotEmpty ? '   ◂ ${p.controller}' : '';
+    return 'FL$fl  ${p.groundspeed}kt$route$ctrl';
   }
 
   Widget _aircraftList() {

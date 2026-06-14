@@ -35,6 +35,18 @@ interface designed for clearance/ground/local positions.
     `C 5000`, `S 210`, `DCT …`, `DEL`).
   The chip next to the input shows the current context; clear it with the ✕.
 
+## Supervisor mode (`_SUP` / `_ADM`)
+
+A `_SUP`/`_ADM` callsign enables supervisor extras on top of normal control:
+
+- **Network tab** — a network-wide roster of all controllers and pilots (with
+  track owner and From→To), polled from the web **datafeed URL** set on the
+  connect screen. Beyond radio range, this is how a supervisor sees everyone.
+- **Kick** — `.kick <callsign>`, plus a red kick button on aircraft, controller,
+  and network rows.
+- **Wallops** — incoming wallops show a red alert banner with Reply (DMs the
+  sender) and Dismiss.
+
 ## Track-state colours
 
 - **Blue** — untracked

@@ -177,6 +177,42 @@ class Controller {
   }
 }
 
+/// A pilot entry from the network-wide datafeed (supervisor view).
+class NetPilot {
+  final String callsign;
+  final String name;
+  final int altitude;
+  final int groundspeed;
+  final String dep;
+  final String dest;
+  final String controller; // tracking controller callsign
+
+  NetPilot({
+    required this.callsign,
+    this.name = '',
+    this.altitude = 0,
+    this.groundspeed = 0,
+    this.dep = '',
+    this.dest = '',
+    this.controller = '',
+  });
+}
+
+/// A controller entry from the network-wide datafeed (supervisor view).
+class NetController {
+  final String callsign;
+  final String name;
+  final int facility;
+  final String frequency;
+
+  NetController({
+    required this.callsign,
+    this.name = '',
+    this.facility = 0,
+    this.frequency = '',
+  });
+}
+
 /// A handoff offered to us by another controller.
 class PendingHandoff {
   final String from;

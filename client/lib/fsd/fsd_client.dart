@@ -25,6 +25,15 @@ bool isSupervisorCallsign(String callsign) {
   return up.endsWith('_SUP') || up.endsWith('_ADM');
 }
 
+/// Formats a raw FSD frequency field ("19900") as MHz ("119.900").
+String frequencyMhz(String raw) {
+  if (raw.isEmpty) return '';
+  final full = '1$raw';
+  return full.length >= 4
+      ? '${full.substring(0, 3)}.${full.substring(3)}'
+      : raw;
+}
+
 String facilityLabel(int facility) {
   switch (facility) {
     case 1:
@@ -55,6 +64,7 @@ class FsdSession {
   final int facility; // ATC facility type (>0 to command aircraft)
   final LatLng center; // scope center / controller position
   final double visRangeNm; // visibility range in nautical miles
+  final String datafeedUrl; // network datafeed (supervisor view)
 
   const FsdSession({
     required this.host,
@@ -66,6 +76,7 @@ class FsdSession {
     this.facility = 5,
     required this.center,
     this.visRangeNm = 500,
+    this.datafeedUrl = '',
   });
 
   /// True when connected with a supervisor callsign (_SUP / _ADM).
@@ -87,6 +98,11 @@ class FsdClient extends ChangeNotifier {
 
   // Active (unacknowledged) wallops received as a supervisor.
   final List<FsdMessage> activeWallops = [];
+
+  // Network-wide roster from the datafeed (supervisor view).
+  final List<NetController> networkControllers = [];
+  final List<NetPilot> networkPilots = [];
+  Timer? _datafeedTimer;
 
   // Message threads keyed by the other party (callsign / channel recipient).
   final Map<String, List<FsdMessage>> conversations = {};
@@ -118,6 +134,8 @@ class FsdClient extends ChangeNotifier {
     flightPlans.clear();
     pendingHandoffs.clear();
     activeWallops.clear();
+    networkControllers.clear();
+    networkPilots.clear();
     conversations.clear();
     conversationOrder.clear();
     _pendingOwn.clear();
@@ -165,6 +183,13 @@ class FsdClient extends ChangeNotifier {
     _renderTimer =
         Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
 
+    // Supervisors get a network-wide roster by polling the datafeed.
+    if (s.isSupervisor && s.datafeedUrl.isNotEmpty) {
+      _pollDatafeed();
+      _datafeedTimer =
+          Timer.periodic(const Duration(seconds: 15), (_) => _pollDatafeed());
+    }
+
     notifyListeners();
   }
 
@@ -201,6 +226,7 @@ class FsdClient extends ChangeNotifier {
     }
     _posTimer?.cancel();
     _renderTimer?.cancel();
+    _datafeedTimer?.cancel();
     _sub?.cancel();
     try {
       _socket?.destroy();
@@ -349,6 +375,54 @@ class FsdClient extends ChangeNotifier {
   void dismissWallop(FsdMessage w) {
     activeWallops.remove(w);
     notifyListeners();
+  }
+
+  // --- Supervisor network datafeed polling ---
+
+  Future<void> _pollDatafeed() async {
+    final url = session?.datafeedUrl ?? '';
+    if (url.isEmpty) return;
+    final me = myCallsign;
+    try {
+      final httpClient = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 8);
+      final req = await httpClient.getUrl(Uri.parse(url));
+      final resp = await req.close();
+      final body = await resp.transform(utf8.decoder).join();
+      httpClient.close();
+      if (resp.statusCode != 200) return;
+
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      networkControllers
+        ..clear()
+        ..addAll(((data['controllers'] as List?) ?? []).map((c) {
+          final m = c as Map<String, dynamic>;
+          return NetController(
+            callsign: '${m['callsign'] ?? ''}',
+            name: '${m['name'] ?? ''}',
+            facility: (m['facility'] as num?)?.toInt() ?? 0,
+            frequency: '${m['frequency'] ?? ''}',
+          );
+        }).where((c) => c.callsign != me));
+      networkPilots
+        ..clear()
+        ..addAll(((data['pilots'] as List?) ?? []).map((p) {
+          final m = p as Map<String, dynamic>;
+          final fp = m['flight_plan'] as Map<String, dynamic>?;
+          return NetPilot(
+            callsign: '${m['callsign'] ?? ''}',
+            name: '${m['name'] ?? ''}',
+            altitude: (m['altitude'] as num?)?.toInt() ?? 0,
+            groundspeed: (m['groundspeed'] as num?)?.toInt() ?? 0,
+            dep: '${fp?['departure'] ?? ''}',
+            dest: '${fp?['arrival'] ?? ''}',
+            controller: '${m['controller'] ?? ''}',
+          );
+        }));
+      notifyListeners();
+    } catch (_) {
+      // Ignore transient polling failures.
+    }
   }
 
   String _conversationId(FsdMessage m) {

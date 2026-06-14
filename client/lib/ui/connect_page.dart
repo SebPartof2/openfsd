@@ -23,6 +23,8 @@ class _ConnectPageState extends State<ConnectPage> {
   final _lat = TextEditingController(text: '21.3187');
   final _lon = TextEditingController(text: '-157.9224');
   final _vis = TextEditingController(text: '500');
+  final _datafeed = TextEditingController(
+      text: 'https://admin.radar.contact/api/v1/data/openfsd-data.json');
 
   bool _connecting = false;
   String? _error;
@@ -45,6 +47,7 @@ class _ConnectPageState extends State<ConnectPage> {
       _lat,
       _lon,
       _vis,
+      _datafeed,
     ]) {
       c.dispose();
     }
@@ -64,6 +67,7 @@ class _ConnectPageState extends State<ConnectPage> {
       _lat.text = p.getString('lat') ?? _lat.text;
       _lon.text = p.getString('lon') ?? _lon.text;
       _vis.text = p.getString('vis') ?? _vis.text;
+      _datafeed.text = p.getString('datafeed') ?? _datafeed.text;
     });
   }
 
@@ -78,6 +82,7 @@ class _ConnectPageState extends State<ConnectPage> {
     await p.setString('lat', _lat.text.trim());
     await p.setString('lon', _lon.text.trim());
     await p.setString('vis', _vis.text.trim());
+    await p.setString('datafeed', _datafeed.text.trim());
   }
 
   Future<void> _connect() async {
@@ -102,6 +107,7 @@ class _ConnectPageState extends State<ConnectPage> {
         double.tryParse(_lon.text) ?? 0,
       ),
       visRangeNm: double.tryParse(_vis.text) ?? 500,
+      datafeedUrl: _datafeed.text.trim(),
     );
 
     // On success, HomePage swaps to the scope automatically.
@@ -179,6 +185,16 @@ class _ConnectPageState extends State<ConnectPage> {
                   const SizedBox(width: 12),
                   Expanded(child: _field('Range (NM)', _vis)),
                 ]),
+              ]),
+              _section('Supervisor', [
+                _field('Datafeed URL', _datafeed),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Used for the network-wide view when connected as _SUP/_ADM.',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                ),
               ]),
               if (_error != null)
                 Padding(
