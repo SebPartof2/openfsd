@@ -411,10 +411,11 @@ class _ScopePageState extends State<ScopePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(children: [
-                    SizedBox(
-                      width: 90,
+                    Expanded(
+                      flex: 2,
                       child: DropdownButtonFormField<String>(
                         value: rules,
+                        isExpanded: true,
                         decoration: dec('Rules'),
                         items: const [
                           DropdownMenuItem(value: 'I', child: Text('IFR')),
@@ -427,6 +428,7 @@ class _ScopePageState extends State<ScopePage> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
+                        flex: 3,
                         child: TextField(
                             controller: acft,
                             autocorrect: false,
@@ -451,8 +453,7 @@ class _ScopePageState extends State<ScopePage> {
                             textCapitalization: TextCapitalization.characters,
                             decoration: dec('To'))),
                     const SizedBox(width: 8),
-                    SizedBox(
-                        width: 100,
+                    Expanded(
                         child: TextField(
                             controller: cruise,
                             autocorrect: false,
