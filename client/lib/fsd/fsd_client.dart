@@ -50,14 +50,22 @@ class FsdClient extends ChangeNotifier {
   Timer? _posTimer;
   Timer? _renderTimer;
 
+  // Login is only considered successful once the server accepts it (MOTD).
+  // A rejection ($ER) or a dropped connection during this phase fails the login.
+  bool _awaitingLogin = false;
+  Completer<String?> _login = Completer<String?>();
+
   Future<void> connect(FsdSession s) async {
     session = s;
     error = null;
+    _login = Completer<String?>();
+    _awaitingLogin = true;
     try {
       _socket = await Socket.connect(s.host, s.port,
           timeout: const Duration(seconds: 10));
     } catch (e) {
       error = 'Connection failed: $e';
+      _awaitingLogin = false;
       notifyListeners();
       return;
     }
@@ -77,6 +85,15 @@ class FsdClient extends ChangeNotifier {
     _send(
         '#AA${s.callsign}:SERVER:OpenVector Controller:${s.cid}:${s.password}:${s.rating}:100');
 
+    // Wait for the server to accept or reject the login before proceeding.
+    final loginError = await _login.future
+        .timeout(const Duration(seconds: 10), onTimeout: () => 'Login timed out');
+    if (loginError != null) {
+      error = loginError;
+      _cleanup();
+      return;
+    }
+
     connected = true;
     _sendPosition();
     _posTimer =
@@ -88,6 +105,11 @@ class FsdClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _completeLogin(String? loginError) {
+    _awaitingLogin = false;
+    if (!_login.isCompleted) _login.complete(loginError);
+  }
+
   void disconnect() {
     final s = session;
     if (s != null && connected) {
@@ -97,6 +119,9 @@ class FsdClient extends ChangeNotifier {
   }
 
   void _cleanup() {
+    if (_awaitingLogin) {
+      _completeLogin('Connection closed during login');
+    }
     _posTimer?.cancel();
     _renderTimer?.cancel();
     _sub?.cancel();
@@ -168,6 +193,18 @@ class FsdClient extends ChangeNotifier {
     if (f.isEmpty) return;
     final head = f[0];
 
+    // Resolve the login once the server responds. A MOTD ("#TM" from "server")
+    // means success; an error packet means the credentials were rejected.
+    if (_awaitingLogin) {
+      if (head.startsWith('\$ER')) {
+        _completeLogin(_loginErrorMessage(f));
+        return;
+      } else if (head.startsWith('#TM') && head.substring(3).toLowerCase() == 'server') {
+        _completeLogin(null);
+        // fall through so the MOTD is also recorded as a message
+      }
+    }
+
     if (head.startsWith('@')) {
       _handlePosition(f);
     } else if (head.startsWith('#AP')) {
@@ -181,6 +218,15 @@ class FsdClient extends ChangeNotifier {
       messages.add('ERROR: ${f.length > 3 ? f.sublist(3).join(':') : line}');
       notifyListeners();
     }
+  }
+
+  // $ERserver:unknown:<code>::<message>
+  String _loginErrorMessage(List<String> f) {
+    if (f.length >= 5) {
+      final msg = f.sublist(4).join(':').trim();
+      if (msg.isNotEmpty) return msg;
+    }
+    return 'Login rejected';
   }
 
   // @MODE:CALLSIGN:SQUAWK:RATING:LAT:LON:ALT:GS:PBH:CORRECTION
