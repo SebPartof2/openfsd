@@ -123,7 +123,7 @@ async function populateMap(map, planeIcon) {
         });
 
         // Add ATC (controllers). They have a position from their ATC update.
-        (res.atc || []).forEach((atc) => {
+        (res.controllers || []).forEach((atc) => {
             const callsign = atc.callsign;
             const lat = atc.latitude;
             const lon = atc.longitude;
