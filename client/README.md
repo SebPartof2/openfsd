@@ -17,6 +17,17 @@ aircraft**.
   `ROUTE`, `SQ`, `VS`, `DEL`, plus global `SPAWN`/`FIX`). With a target selected,
   per-aircraft commands are auto-prefixed with its callsign.
 
+## Reading the scope
+
+Target colour shows track state:
+
+- **Blue** — untracked
+- **Green** — tracked by you
+- **Orange** — tracked by another controller (their callsign shows as `@CALLSIGN` in the data tag)
+- **Amber** — currently selected
+
+The data tag reads `CALLSIGN`, then flight level (altitude/100) and groundspeed.
+
 ## Project layout
 
 ```

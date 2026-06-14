@@ -47,6 +47,8 @@ class FsdClient extends ChangeNotifier {
   String? error;
   FsdSession? session;
 
+  String get myCallsign => session?.callsign ?? '';
+
   Timer? _posTimer;
   Timer? _renderTimer;
 
@@ -163,7 +165,9 @@ class FsdClient extends ChangeNotifier {
     final s = session;
     if (s == null) return;
     _send('\$CQ${s.callsign}:@94835:IT:$target');
-    aircraft[target]?.trackedByMe = true;
+    // The server does not echo our own track broadcast back to us, so reflect
+    // it locally for immediate feedback.
+    aircraft[target]?.trackedBy = s.callsign;
     notifyListeners();
   }
 
@@ -171,7 +175,8 @@ class FsdClient extends ChangeNotifier {
     final s = session;
     if (s == null) return;
     _send('\$CQ${s.callsign}:@94835:DR:$target');
-    aircraft[target]?.trackedByMe = false;
+    final ac = aircraft[target];
+    if (ac != null && ac.trackedBy == s.callsign) ac.trackedBy = null;
     notifyListeners();
   }
 
@@ -214,9 +219,36 @@ class FsdClient extends ChangeNotifier {
       notifyListeners();
     } else if (head.startsWith('#TM')) {
       _handleText(f);
+    } else if (head.startsWith('\$CQ')) {
+      _handleClientQuery(f);
     } else if (head.startsWith('\$ER')) {
       messages.add('ERROR: ${f.length > 3 ? f.sublist(3).join(':') : line}');
       notifyListeners();
+    }
+  }
+
+  // $CQ<FROM>:<RECIPIENT>:<TYPE>:<TARGET>
+  // Snoop track changes broadcast by other controllers so the scope shows who
+  // currently owns each target.
+  void _handleClientQuery(List<String> f) {
+    if (f.length < 4) return;
+    final from = f[0].substring(3);
+    final type = f[2];
+    final ac = aircraft[f[3]];
+    if (ac == null) return;
+
+    switch (type) {
+      case 'IT': // initiate track
+      case 'HT': // acquired via handoff
+        ac.trackedBy = from;
+        notifyListeners();
+        break;
+      case 'DR': // drop track
+        if (ac.trackedBy == from) {
+          ac.trackedBy = null;
+          notifyListeners();
+        }
+        break;
     }
   }
 

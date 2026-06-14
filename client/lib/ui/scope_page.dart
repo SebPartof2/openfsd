@@ -53,7 +53,7 @@ class _ScopePageState extends State<ScopePage> {
     if (cs == null) return;
     final ac = client.aircraft[cs];
     if (ac == null) return;
-    if (ac.trackedByMe) {
+    if (ac.trackedBy == client.myCallsign) {
       client.dropTrack(cs);
     } else {
       client.initiateTrack(cs);
@@ -122,11 +122,12 @@ class _ScopePageState extends State<ScopePage> {
       final selected = ac.callsign == _selected;
       return Marker(
         point: ac.extrapolated(now),
-        width: 120,
-        height: 64,
+        width: 130,
+        height: 76,
         child: _AircraftSymbol(
           aircraft: ac,
           selected: selected,
+          myCallsign: client.myCallsign,
           onTap: () => setState(() => _selected = ac.callsign),
         ),
       );
@@ -206,13 +207,13 @@ class _ScopePageState extends State<ScopePage> {
                   listenable: client,
                   builder: (_, __) {
                     final ac = client.aircraft[_selected];
-                    final tracked = ac?.trackedByMe ?? false;
+                    final mine = ac?.trackedBy == client.myCallsign;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: FilledButton.tonalIcon(
                         onPressed: _toggleTrack,
-                        icon: Icon(tracked ? Icons.link_off : Icons.link),
-                        label: Text(tracked ? 'Drop $_selected' : 'Track $_selected'),
+                        icon: Icon(mine ? Icons.link_off : Icons.link),
+                        label: Text(mine ? 'Drop $_selected' : 'Track $_selected'),
                       ),
                     );
                   },
@@ -261,19 +262,35 @@ class _ScopePageState extends State<ScopePage> {
 class _AircraftSymbol extends StatelessWidget {
   final Aircraft aircraft;
   final bool selected;
+  final String myCallsign;
   final VoidCallback onTap;
 
   const _AircraftSymbol({
     required this.aircraft,
     required this.selected,
+    required this.myCallsign,
     required this.onTap,
   });
 
+  Color get _color {
+    if (selected) return Colors.amber;
+    final owner = aircraft.trackedBy;
+    if (owner == null) return Colors.lightBlueAccent; // untracked
+    if (owner == myCallsign) return Colors.greenAccent; // mine
+    return Colors.orangeAccent; // tracked by another controller
+  }
+
   @override
   Widget build(BuildContext context) {
-    final color = selected
-        ? Colors.amber
-        : (aircraft.trackedByMe ? Colors.greenAccent : Colors.lightBlueAccent);
+    final color = _color;
+    final fl = (aircraft.altitude / 100).round().toString().padLeft(3, '0');
+    final owner = aircraft.trackedBy;
+
+    final tag = StringBuffer('${aircraft.callsign}\n$fl ${aircraft.groundspeed}');
+    if (owner != null && owner != myCallsign) {
+      tag.write('\n@$owner');
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -292,12 +309,9 @@ class _AircraftSymbol extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               child: Text(
-                '${aircraft.callsign}\n'
-                '${(aircraft.altitude / 100).round().toString().padLeft(3, '0')} '
-                '${aircraft.groundspeed}',
+                tag.toString(),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: color, fontSize: 10, height: 1.1),
+                style: TextStyle(color: color, fontSize: 10, height: 1.1),
               ),
             ),
           ),

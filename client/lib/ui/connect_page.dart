@@ -12,7 +12,7 @@ class ConnectPage extends StatefulWidget {
 }
 
 class _ConnectPageState extends State<ConnectPage> {
-  final _host = TextEditingController(text: '127.0.0.1');
+  final _host = TextEditingController(text: 'connect.radar.contact');
   final _port = TextEditingController(text: '6809');
   final _callsign = TextEditingController(text: 'LAX_APP');
   final _cid = TextEditingController(text: '1');

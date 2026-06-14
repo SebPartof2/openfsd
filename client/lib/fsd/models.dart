@@ -12,8 +12,9 @@ class Aircraft {
   String squawk;
   DateTime lastUpdate;
 
-  /// True when this client currently holds the aircraft's track.
-  bool trackedByMe;
+  /// Callsign of the controller currently holding this aircraft's track,
+  /// or null when the aircraft is untracked.
+  String? trackedBy;
 
   Aircraft({
     required this.callsign,
@@ -23,8 +24,12 @@ class Aircraft {
     this.heading = 0,
     this.squawk = '',
     DateTime? lastUpdate,
-    this.trackedByMe = false,
+    this.trackedBy,
   }) : lastUpdate = lastUpdate ?? DateTime.now();
+
+  /// Whether this aircraft is tracked by the controller with [callsign].
+  bool isTrackedBy(String controllerCallsign) =>
+      trackedBy != null && trackedBy == controllerCallsign;
 
   /// Dead-reckons the position forward to [now] using the last known
   /// groundspeed and heading, mirroring how a radar scope extrapolates
