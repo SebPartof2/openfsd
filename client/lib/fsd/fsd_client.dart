@@ -85,6 +85,9 @@ class FsdClient extends ChangeNotifier {
   final Map<String, FlightPlan> flightPlans = {};
   final List<PendingHandoff> pendingHandoffs = [];
 
+  // Active (unacknowledged) wallops received as a supervisor.
+  final List<FsdMessage> activeWallops = [];
+
   // Message threads keyed by the other party (callsign / channel recipient).
   final Map<String, List<FsdMessage>> conversations = {};
   final List<String> conversationOrder = [];
@@ -114,6 +117,7 @@ class FsdClient extends ChangeNotifier {
     controllers.clear();
     flightPlans.clear();
     pendingHandoffs.clear();
+    activeWallops.clear();
     conversations.clear();
     conversationOrder.clear();
     _pendingOwn.clear();
@@ -334,6 +338,16 @@ class FsdClient extends ChangeNotifier {
     });
     list.add(m);
     if (list.length > 500) list.removeAt(0);
+
+    // Surface incoming wallops as a prominent alert.
+    if (m.to == '*S' && m.from != myCallsign) {
+      activeWallops.add(m);
+    }
+    notifyListeners();
+  }
+
+  void dismissWallop(FsdMessage w) {
+    activeWallops.remove(w);
     notifyListeners();
   }
 

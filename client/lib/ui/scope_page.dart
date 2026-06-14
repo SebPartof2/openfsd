@@ -275,6 +275,7 @@ class _ScopePageState extends State<ScopePage> {
       ),
       body: Column(
         children: [
+          _wallopBanner(),
           _handoffBanner(),
           Expanded(
             child: Row(
@@ -298,6 +299,42 @@ class _ScopePageState extends State<ScopePage> {
           _commandBar(),
         ],
       ),
+    );
+  }
+
+  Widget _wallopBanner() {
+    return ListenableBuilder(
+      listenable: client,
+      builder: (_, __) {
+        if (client.activeWallops.isEmpty) return const SizedBox.shrink();
+        return Column(
+          children: [
+            for (final w in client.activeWallops)
+              Container(
+                color: const Color(0xFF4A0E0E),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.campaign, color: Colors.redAccent),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('WALLOP ${w.from}: ${w.text}')),
+                    TextButton(
+                      onPressed: () {
+                        _openChat(w.from);
+                        client.dismissWallop(w);
+                      },
+                      child: const Text('Reply'),
+                    ),
+                    TextButton(
+                      onPressed: () => client.dismissWallop(w),
+                      child: const Text('Dismiss'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
