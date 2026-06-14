@@ -123,6 +123,18 @@ class _ScopePageState extends State<ScopePage> {
           client.sendText('@49999', parts.sublist(1).join(' '));
         }
         break;
+      case '.kick':
+        if (!(client.session?.isSupervisor ?? false)) {
+          _toast('Supervisor only (connect as _SUP / _ADM)');
+          return;
+        }
+        if (parts.length < 2) {
+          _toast('Usage: .kick <callsign>');
+          return;
+        }
+        client.kick(parts[1]);
+        _toast('Kicked ${parts[1].toUpperCase()}');
+        break;
       case '.ho':
       case '.handoff':
         if (_selected == null) {
@@ -151,6 +163,29 @@ class _ScopePageState extends State<ScopePage> {
       return FsdClient.frequencyRecipient(to);
     }
     return to.toUpperCase();
+  }
+
+  Future<void> _confirmKick(String callsign) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Kick $callsign?'),
+        content: const Text('This disconnects the connection from the network.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Kick')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      client.kick(callsign);
+      _toast('Kicked $callsign');
+    }
   }
 
   void _toggleTrack(String callsign) {
@@ -393,6 +428,15 @@ class _ScopePageState extends State<ScopePage> {
                 color: mine ? Colors.greenAccent : Colors.white54),
             onPressed: () => _toggleTrack(ac.callsign),
           ),
+          if (client.session?.isSupervisor ?? false)
+            IconButton(
+              tooltip: 'Kick',
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32),
+              icon: const Icon(Icons.gpp_bad, color: Colors.redAccent),
+              onPressed: () => _confirmKick(ac.callsign),
+            ),
         ],
       ),
       onTap: () => _selectAircraft(ac.callsign),
@@ -541,16 +585,32 @@ class _ScopePageState extends State<ScopePage> {
               style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text('${c.facilityName}   ${c.frequencyMhz}',
               style: const TextStyle(fontSize: 12)),
-          trailing: canHandoff
-              ? IconButton(
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (canHandoff)
+                IconButton(
                   tooltip: 'Handoff $_selected to ${c.callsign}',
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32),
                   icon: const Icon(Icons.swap_horiz),
                   onPressed: () {
                     client.initiateHandoff(_selected!, c.callsign);
                     _toast('Handoff $_selected → ${c.callsign}');
                   },
-                )
-              : null,
+                ),
+              if (client.session?.isSupervisor ?? false)
+                IconButton(
+                  tooltip: 'Kick',
+                  iconSize: 20,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32),
+                  icon: const Icon(Icons.gpp_bad, color: Colors.redAccent),
+                  onPressed: () => _confirmKick(c.callsign),
+                ),
+            ],
+          ),
           onTap: () => _openChat(c.callsign),
         );
       },

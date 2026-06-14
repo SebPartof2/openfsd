@@ -301,6 +301,13 @@ class FsdClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Kicks a connection (supervisor only; the server enforces the rating).
+  void kick(String callsign) {
+    final s = session;
+    if (s == null) return;
+    _send('\$!!${s.callsign}:${callsign.toUpperCase()}:Kicked by supervisor');
+  }
+
   /// Asks the server for an aircraft's filed flight plan (reply arrives as $FP).
   void requestFlightPlan(String callsign) {
     final s = session;

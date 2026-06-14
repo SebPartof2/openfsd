@@ -290,7 +290,7 @@ type DatafeedPilot struct {
 	MilitaryRating int                 `json:"military_rating"`       // INOP placeholder
 	QnhIHg         float64             `json:"qnh_i_hg"`              // INOP placeholder
 	QnhMb          int                 `json:"qnh_mb"`                // INOP placeholder
-	FlightPlan     *DatafeedFlightplan `json:"flight_plan,omitempty"` // INOP placeholder
+	FlightPlan     *DatafeedFlightplan `json:"flight_plan,omitempty"` // Populated from the filed flightplan
 }
 
 type DatafeedFlightplan struct {
@@ -301,6 +301,7 @@ type DatafeedFlightplan struct {
 	Departure           string `json:"departure"`
 	Arrival             string `json:"arrival"`
 	Alternate           string `json:"alternate"`
+	Altitude            string `json:"altitude"`
 	DepTime             string `json:"deptime"`
 	EnrouteTime         string `json:"enroute_time"`
 	FuelTime            string `json:"fuel_time"`
@@ -378,14 +379,28 @@ func (s *Server) generateDatafeed() (feed *DatafeedCache, err error) {
 	}
 
 	for _, pilot := range onlineUsers.Pilots {
-		dataFeed.Pilots = append(dataFeed.Pilots, DatafeedPilot{
+		dp := DatafeedPilot{
 			OnlineUserPilot: pilot,
 			Server:          "OPENFSD",
 			PilotRating:     1,
 			MilitaryRating:  1,
 			QnhIHg:          29.92,
 			QnhMb:           1013,
-		})
+		}
+		if fp := pilot.FlightPlan; fp != nil {
+			dp.FlightPlan = &DatafeedFlightplan{
+				FlightRules:         fp.FlightRules,
+				Aircraft:            fp.Aircraft,
+				Departure:           fp.Departure,
+				Arrival:             fp.Arrival,
+				Alternate:           fp.Alternate,
+				Altitude:            fp.CruiseAltitude,
+				Remarks:             fp.Remarks,
+				Route:               fp.Route,
+				AssignedTransponder: fp.AssignedTransponder,
+			}
+		}
+		dataFeed.Pilots = append(dataFeed.Pilots, dp)
 	}
 
 	for _, atc := range onlineUsers.ATC {

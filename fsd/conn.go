@@ -345,7 +345,26 @@ func (s *Server) attemptAuthentication(client *Client, token string) (err error)
 	}
 	client.maxNetworkRating = NetworkRating(user.NetworkRating)
 
+	// Use the account's real name rather than whatever the client sent.
+	if name := userDisplayName(user); name != "" {
+		client.realName = name
+	}
+
 	return
+}
+
+func userDisplayName(user *db.User) string {
+	name := ""
+	if user.FirstName != nil {
+		name = *user.FirstName
+	}
+	if user.LastName != nil && *user.LastName != "" {
+		if name != "" {
+			name += " "
+		}
+		name += *user.LastName
+	}
+	return name
 }
 
 func (s *Server) broadcastAddPacket(client *Client) {

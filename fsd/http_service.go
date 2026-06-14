@@ -76,10 +76,49 @@ type OnlineUserGeneralData struct {
 
 type OnlineUserPilot struct {
 	OnlineUserGeneralData
-	Altitude    int    `json:"altitude"`
-	Groundspeed int    `json:"groundspeed"`
-	Heading     int    `json:"heading"`
-	Transponder string `json:"transponder"`
+	Altitude    int                   `json:"altitude"`
+	Groundspeed int                   `json:"groundspeed"`
+	Heading     int                   `json:"heading"`
+	Transponder string                `json:"transponder"`
+	Controller  string                `json:"controller,omitempty"` // callsign currently tracking it
+	FlightPlan  *OnlineUserFlightPlan `json:"flight_plan,omitempty"`
+}
+
+type OnlineUserFlightPlan struct {
+	FlightRules         string `json:"flight_rules"`
+	Aircraft            string `json:"aircraft"`
+	Departure           string `json:"departure"`
+	Arrival             string `json:"arrival"`
+	Alternate           string `json:"alternate"`
+	CruiseAltitude      string `json:"cruise_altitude"`
+	Route               string `json:"route"`
+	Remarks             string `json:"remarks"`
+	AssignedTransponder string `json:"assigned_transponder"`
+}
+
+// parseFlightPlan parses a stored flightplan info section into structured fields.
+func parseFlightPlan(info, beacon string) *OnlineUserFlightPlan {
+	if info == "" {
+		return nil
+	}
+	f := strings.Split(info, ":")
+	at := func(i int) string {
+		if i < len(f) {
+			return f[i]
+		}
+		return ""
+	}
+	return &OnlineUserFlightPlan{
+		FlightRules:         at(0),
+		Aircraft:            at(1),
+		Departure:           at(3),
+		CruiseAltitude:      at(6),
+		Arrival:             at(7),
+		Alternate:           at(12),
+		Remarks:             at(13),
+		Route:               at(14),
+		AssignedTransponder: beacon,
+	}
 }
 
 type OnlineUserATC struct {
@@ -139,6 +178,9 @@ func (s *Server) handleGetOnlineUsers(c *gin.Context) {
 				Groundspeed:           int(client.groundspeed.Load()),
 				Heading:               int(client.heading.Load()),
 				Transponder:           client.transponder.Load(),
+				Controller:            client.controllingController.Load(),
+				FlightPlan: parseFlightPlan(
+					client.flightPlan.Load(), client.assignedBeaconCode.Load()),
 			}
 			resData.Pilots = append(resData.Pilots, pilot)
 		}
