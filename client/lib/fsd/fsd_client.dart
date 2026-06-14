@@ -43,6 +43,9 @@ class FsdClient extends ChangeNotifier {
   final Map<String, Aircraft> aircraft = {};
   final List<FsdMessage> messages = [];
 
+  // Callsigns we just spawned: mark them tracked by us once they appear.
+  final Set<String> _pendingOwn = {};
+
   bool connected = false;
   String? error;
   FsdSession? session;
@@ -159,6 +162,15 @@ class FsdClient extends ChangeNotifier {
     final s = session;
     if (s == null) return;
     _send('#TM${s.callsign}:SIM:$cmd');
+  }
+
+  /// Spawns an aircraft at this controller's position. The server gives the
+  /// creator the track; we reflect that locally once the aircraft appears.
+  void spawnAtField(String callsign) {
+    final cs = callsign.trim().toUpperCase();
+    if (cs.isEmpty) return;
+    sendSimCommand('SPAWN $cs');
+    _pendingOwn.add(cs);
   }
 
   /// Sends a text message to an arbitrary recipient (callsign, "@49999" for ATC
@@ -301,6 +313,11 @@ class FsdClient extends ChangeNotifier {
     ac.heading = headingFromPbh(pbh);
     ac.squawk = f[2];
     ac.lastUpdate = DateTime.now();
+
+    // Reflect ownership of aircraft we just spawned.
+    if (_pendingOwn.remove(cs)) {
+      ac.trackedBy = myCallsign;
+    }
   }
 
   // #TM<FROM>:<TO>:<MESSAGE>

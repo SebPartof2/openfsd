@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_map: ^7.0.2
   latlong2: ^0.9.1
   shared_preferences: ^2.3.2
 
