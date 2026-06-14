@@ -7,6 +7,43 @@ import 'package:latlong2/latlong.dart';
 
 import 'models.dart';
 
+/// Derives the ATC facility type from a callsign suffix (VATSIM convention).
+int facilityForCallsign(String callsign) {
+  final up = callsign.toUpperCase();
+  if (up.endsWith('_DEL')) return 2;
+  if (up.endsWith('_GND')) return 3;
+  if (up.endsWith('_TWR')) return 4;
+  if (up.endsWith('_APP') || up.endsWith('_DEP')) return 5;
+  if (up.endsWith('_CTR')) return 6;
+  if (up.endsWith('_FSS')) return 1;
+  return 0; // OBS / SUP / ADM
+}
+
+/// Supervisor mode is triggered by a _SUP or _ADM callsign suffix.
+bool isSupervisorCallsign(String callsign) {
+  final up = callsign.toUpperCase();
+  return up.endsWith('_SUP') || up.endsWith('_ADM');
+}
+
+String facilityLabel(int facility) {
+  switch (facility) {
+    case 1:
+      return 'FSS';
+    case 2:
+      return 'Clearance';
+    case 3:
+      return 'Ground';
+    case 4:
+      return 'Tower';
+    case 5:
+      return 'Approach';
+    case 6:
+      return 'Center';
+    default:
+      return 'Observer';
+  }
+}
+
 /// Connection parameters for logging in to an OpenVector / FSD server.
 class FsdSession {
   final String host;
@@ -30,6 +67,9 @@ class FsdSession {
     required this.center,
     this.visRangeNm = 500,
   });
+
+  /// True when connected with a supervisor callsign (_SUP / _ADM).
+  bool get isSupervisor => isSupervisorCallsign(callsign);
 }
 
 /// FsdClient owns the TCP connection to an OpenVector server, speaks the FSD

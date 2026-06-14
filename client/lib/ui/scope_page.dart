@@ -207,6 +207,22 @@ class _ScopePageState extends State<ScopePage> {
             const Icon(Icons.circle, color: Colors.greenAccent, size: 12),
             const SizedBox(width: 8),
             Text('OpenVector — ${s.callsign}'),
+            if (s.isSupervisor) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text('SUP',
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+              ),
+            ],
           ],
         ),
         actions: [

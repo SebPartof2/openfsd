@@ -4,13 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fsd/fsd_client.dart';
 
-/// Facilities OpenVector simulates (surface positions).
-const _facilities = <int, String>{
-  2: 'Clearance Delivery',
-  3: 'Ground',
-  4: 'Tower / Local',
-};
-
 class ConnectPage extends StatefulWidget {
   final FsdClient client;
   const ConnectPage({super.key, required this.client});
@@ -30,7 +23,6 @@ class _ConnectPageState extends State<ConnectPage> {
   final _lat = TextEditingController(text: '21.3187');
   final _lon = TextEditingController(text: '-157.9224');
   final _vis = TextEditingController(text: '500');
-  int _facility = 4;
 
   bool _connecting = false;
   String? _error;
@@ -69,7 +61,6 @@ class _ConnectPageState extends State<ConnectPage> {
       _cid.text = p.getString('cid') ?? _cid.text;
       _password.text = p.getString('password') ?? _password.text;
       _rating.text = p.getString('rating') ?? _rating.text;
-      _facility = p.getInt('facility') ?? _facility;
       _lat.text = p.getString('lat') ?? _lat.text;
       _lon.text = p.getString('lon') ?? _lon.text;
       _vis.text = p.getString('vis') ?? _vis.text;
@@ -84,7 +75,6 @@ class _ConnectPageState extends State<ConnectPage> {
     await p.setString('cid', _cid.text.trim());
     await p.setString('password', _password.text);
     await p.setString('rating', _rating.text.trim());
-    await p.setInt('facility', _facility);
     await p.setString('lat', _lat.text.trim());
     await p.setString('lon', _lon.text.trim());
     await p.setString('vis', _vis.text.trim());
@@ -98,14 +88,15 @@ class _ConnectPageState extends State<ConnectPage> {
 
     await _savePrefs();
 
+    final callsign = _callsign.text.trim().toUpperCase();
     final session = FsdSession(
       host: _host.text.trim(),
       port: int.tryParse(_port.text) ?? 6809,
-      callsign: _callsign.text.trim().toUpperCase(),
+      callsign: callsign,
       cid: int.tryParse(_cid.text) ?? 0,
       password: _password.text,
       rating: int.tryParse(_rating.text) ?? 1,
-      facility: _facility,
+      facility: facilityForCallsign(callsign),
       center: LatLng(
         double.tryParse(_lat.text) ?? 0,
         double.tryParse(_lon.text) ?? 0,
@@ -154,7 +145,23 @@ class _ConnectPageState extends State<ConnectPage> {
                 ]),
               ]),
               _section('Controller', [
-                _field('Callsign', _callsign),
+                TextField(
+                  controller: _callsign,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Callsign',
+                    helperText:
+                        'Position is set by the suffix (_GND, _TWR, …); '
+                        '_SUP/_ADM enables supervisor mode',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _positionHint(),
                 const SizedBox(height: 12),
                 Row(children: [
                   Expanded(child: _field('CID', _cid)),
@@ -163,19 +170,6 @@ class _ConnectPageState extends State<ConnectPage> {
                 ]),
                 const SizedBox(height: 12),
                 _field('Password', _password, obscure: true),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: _facility,
-                  decoration: const InputDecoration(
-                    labelText: 'Position',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _facilities.entries
-                      .map((e) => DropdownMenuItem(
-                          value: e.key, child: Text(e.value)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _facility = v ?? _facility),
-                ),
               ]),
               _section('Scope centre', [
                 Row(children: [
@@ -209,6 +203,33 @@ class _ConnectPageState extends State<ConnectPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _positionHint() {
+    final cs = _callsign.text.trim();
+    final fac = facilityLabel(facilityForCallsign(cs));
+    final sup = isSupervisorCallsign(cs);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          Chip(
+            label: Text('Position: $fac'),
+            visualDensity: VisualDensity.compact,
+          ),
+          if (sup)
+            Chip(
+              avatar: const Icon(Icons.shield, size: 16, color: Colors.black),
+              backgroundColor: Colors.amber,
+              label: const Text('Supervisor',
+                  style: TextStyle(color: Colors.black)),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
       ),
     );
   }

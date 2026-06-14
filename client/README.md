@@ -84,7 +84,9 @@ add the **network client** entitlement. Add the following inside the `<dict>` of
 ## Connecting
 
 Fill in the server host/port, your **CID** and **password** (an OpenVector user —
-e.g. the default admin CID `1`), a **callsign**, **rating**, and **position**
-(Clearance / Ground / Tower). Defaults target Honolulu Tower (`HNL_TWR` / PHNL).
+e.g. the default admin CID `1`), a **callsign**, and **rating**. The **position
+is derived from the callsign suffix** (`_DEL`, `_GND`, `_TWR`, `_APP`, `_CTR`,
+`_FSS`); a `_SUP` or `_ADM` suffix additionally enables **supervisor mode** (you
+can still control normally). Defaults target Honolulu Tower (`HNL_TWR` / PHNL).
 Your last-used settings — including the password — are remembered locally between
 launches.
