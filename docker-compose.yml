@@ -1,6 +1,8 @@
 services:
   fsd:
-    image: ghcr.io/renorris/openfsd:fsd-latest
+    build:
+      context: .
+      dockerfile: Dockerfile_fsd
     restart: unless-stopped
     container_name: openfsd_fsd
     hostname: openfsd_fsd
@@ -11,11 +13,14 @@ services:
     environment:
       DATABASE_SOURCE_NAME: /db/openfsd.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)
       DATABASE_AUTO_MIGRATE: true
+      CONTROLLER_ONLY: "true" # OpenVector: controllers create aircraft; reject pilot logins. Remove to allow pilots.
     volumes:
       - sqlite:/db
 
   fsdweb:
-    image: ghcr.io/renorris/openfsd:web-latest
+    build:
+      context: .
+      dockerfile: Dockerfile_web
     restart: unless-stopped
     container_name: openfsd_web
     hostname: openfsd_web
