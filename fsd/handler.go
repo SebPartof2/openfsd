@@ -444,6 +444,12 @@ func (s *Server) handleKillRequest(client *Client, packet []byte) {
 		return
 	}
 
+	// Simulated aircraft are owned by the sim manager and must be removed there.
+	if victim.isVirtual {
+		s.simManager.remove(victim.callsign)
+		return
+	}
+
 	// Closing the context of the victim client will eventually cause it to disconnect
 	victim.cancelCtx()
 }

@@ -598,25 +598,45 @@ func (m *simManager) handleCommand(controller *Client, body string) {
 }
 
 func (m *simManager) handleSpawnCommand(controller *Client, args []string) {
-	// SPAWN <callsign> <lat> <lon> <hdg> <alt> <spd>
-	if len(args) < 6 {
-		m.reply(controller, "Usage: SPAWN <callsign> <lat> <lon> <hdg> <alt> <spd>")
+	// Forms:
+	//   SPAWN <callsign>                                  (at controller's position)
+	//   SPAWN <callsign> <hdg> <alt> <spd>                (at controller's position)
+	//   SPAWN <callsign> <lat> <lon> <hdg> <alt> <spd>    (explicit position)
+	if len(args) == 0 {
+		m.reply(controller, "Usage: SPAWN <callsign> [hdg alt spd] | SPAWN <callsign> <lat> <lon> <hdg> <alt> <spd>")
 		return
 	}
 
 	callsign := strings.ToUpper(args[0])
-	lat, err1 := strconv.ParseFloat(args[1], 64)
-	lon, err2 := strconv.ParseFloat(args[2], 64)
-	hdg, err3 := strconv.Atoi(args[3])
-	alt, err4 := strconv.Atoi(args[4])
-	spd, err5 := strconv.Atoi(args[5])
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil {
-		m.reply(controller, "Invalid SPAWN arguments")
+	if m.find(callsign) != nil {
+		m.reply(controller, "Callsign already exists: "+callsign)
 		return
 	}
 
-	if m.find(callsign) != nil {
-		m.reply(controller, "Callsign already exists: "+callsign)
+	// Default to the owning controller's position (vis center).
+	ll := controller.latLon()
+	lat, lon := ll[0], ll[1]
+	var hdg, alt, spd int
+	var err error
+
+	switch len(args) {
+	case 1:
+		// position only; hdg/alt/spd default to 0
+	case 4:
+		hdg, alt, spd, err = parseSpawnVector(args[1], args[2], args[3])
+	case 6:
+		if lat, err = strconv.ParseFloat(args[1], 64); err == nil {
+			lon, err = strconv.ParseFloat(args[2], 64)
+		}
+		if err == nil {
+			hdg, alt, spd, err = parseSpawnVector(args[3], args[4], args[5])
+		}
+	default:
+		m.reply(controller, "Usage: SPAWN <callsign> [hdg alt spd] | SPAWN <callsign> <lat> <lon> <hdg> <alt> <spd>")
+		return
+	}
+	if err != nil {
+		m.reply(controller, "Invalid SPAWN arguments")
 		return
 	}
 
@@ -626,6 +646,17 @@ func (m *simManager) handleSpawnCommand(controller *Client, args []string) {
 	}
 
 	m.reply(controller, "Spawned "+callsign+" (you have the track)")
+}
+
+func parseSpawnVector(h, a, s string) (hdg, alt, spd int, err error) {
+	if hdg, err = strconv.Atoi(h); err != nil {
+		return
+	}
+	if alt, err = strconv.Atoi(a); err != nil {
+		return
+	}
+	spd, err = strconv.Atoi(s)
+	return
 }
 
 func (m *simManager) handleFixCommand(controller *Client, args []string) {

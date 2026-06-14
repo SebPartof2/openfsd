@@ -169,6 +169,13 @@ func (s *Server) handleKickUser(c *gin.Context) {
 		return
 	}
 
+	// Simulated aircraft are owned by the sim manager and must be removed there.
+	if client.isVirtual {
+		s.simManager.remove(client.callsign)
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
 	// Cancelling the context will cause the client's event loop to close
 	client.cancelCtx()
 

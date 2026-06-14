@@ -11,6 +11,42 @@ import 'messages_panel.dart';
 
 const _globalVerbs = {'SPAWN', 'FIX', 'FIXES'};
 
+/// A selectable map base layer.
+class _Basemap {
+  final String name;
+  final String url;
+  final List<String> subdomains;
+  final int maxZoom;
+  final String? labels; // optional transparent reference/labels overlay
+
+  const _Basemap(this.name, this.url,
+      {this.subdomains = const [], this.maxZoom = 19, this.labels});
+}
+
+const _basemaps = <_Basemap>[
+  _Basemap(
+    'Satellite',
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    labels:
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+  ),
+  _Basemap(
+    'Dark',
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
+    maxZoom: 20,
+  ),
+  _Basemap('Streets', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+];
+
+/// Colour for an aircraft target by track ownership.
+Color trackColor(Aircraft ac, String myCallsign) {
+  final owner = ac.trackedBy;
+  if (owner == null) return Colors.lightBlueAccent; // untracked
+  if (owner == myCallsign) return Colors.greenAccent; // mine
+  return Colors.orangeAccent; // another controller
+}
+
 class ScopePage extends StatefulWidget {
   final FsdClient client;
   const ScopePage({super.key, required this.client});
@@ -25,10 +61,11 @@ class _ScopePageState extends State<ScopePage> {
   final ValueNotifier<String> _composeTo = ValueNotifier<String>('@49999');
 
   String? _selected;
-  bool _spawnMode = false;
   bool _showMessages = true;
+  bool _showList = true;
   bool _showNav = true;
   bool _mapReady = false;
+  int _basemap = 0;
 
   NavData _nav = NavData();
 
@@ -47,14 +84,18 @@ class _ScopePageState extends State<ScopePage> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _onMapTap(TapPosition _, LatLng point) {
-    if (_spawnMode) {
-      _openSpawnDialog(point);
-      setState(() => _spawnMode = false);
-    } else {
-      setState(() => _selected = null);
+  void _select(String callsign, {bool center = false}) {
+    setState(() => _selected = callsign);
+    if (center && _mapReady) {
+      final ac = client.aircraft[callsign];
+      if (ac != null) {
+        _mapController.move(
+            ac.extrapolated(DateTime.now()), _mapController.camera.zoom);
+      }
     }
   }
+
+  void _onMapTap(TapPosition _, LatLng point) => setState(() => _selected = null);
 
   // Right-click / long-press: send the selected (owned) aircraft direct to here.
   void _onMapLongPress(TapPosition _, LatLng point) {
@@ -129,8 +170,6 @@ class _ScopePageState extends State<ScopePage> {
     }
   }
 
-  /// Resolves a CRC-style recipient: a frequency (121.9), an already-prefixed
-  /// recipient (@49999, *S), or a callsign.
   String _resolveRecipient(String to) {
     if (to.startsWith('@') || to.startsWith('*')) return to;
     if (RegExp(r'^\d{2,3}\.\d{1,3}$').hasMatch(to)) {
@@ -151,22 +190,21 @@ class _ScopePageState extends State<ScopePage> {
     }
   }
 
-  Future<void> _openSpawnDialog(LatLng at) async {
-    final callsign = TextEditingController(text: 'AAL123');
-    final hdg = TextEditingController(text: '90');
+  // Spawn at the controller's vis center (server places it there when no
+  // coordinates are given).
+  Future<void> _openSpawnDialog() async {
+    final callsign = TextEditingController(text: 'HAL1');
+    final hdg = TextEditingController(text: '0');
     final alt = TextEditingController(text: '0');
     final spd = TextEditingController(text: '0');
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Spawn aircraft'),
+        title: const Text('Spawn aircraft at field'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-                'At ${at.latitude.toStringAsFixed(4)}, ${at.longitude.toStringAsFixed(4)}'),
-            const SizedBox(height: 8),
             TextField(
                 controller: callsign,
                 decoration: const InputDecoration(labelText: 'Callsign')),
@@ -202,7 +240,6 @@ class _ScopePageState extends State<ScopePage> {
 
     if (ok == true) {
       client.sendSimCommand('SPAWN ${callsign.text.trim().toUpperCase()} '
-          '${at.latitude.toStringAsFixed(5)} ${at.longitude.toStringAsFixed(5)} '
           '${hdg.text.trim()} ${alt.text.trim()} ${spd.text.trim()}');
     }
   }
@@ -276,6 +313,26 @@ class _ScopePageState extends State<ScopePage> {
     _toast('Loaded $total navdata points');
   }
 
+  List<Widget> _tileLayers() {
+    final bm = _basemaps[_basemap];
+    final layers = <Widget>[
+      TileLayer(
+        urlTemplate: bm.url,
+        subdomains: bm.subdomains,
+        maxNativeZoom: bm.maxZoom,
+        userAgentPackageName: 'com.openvector.client',
+      ),
+    ];
+    if (bm.labels != null) {
+      layers.add(TileLayer(
+        urlTemplate: bm.labels!,
+        maxNativeZoom: bm.maxZoom,
+        userAgentPackageName: 'com.openvector.client',
+      ));
+    }
+    return layers;
+  }
+
   List<Marker> _buildAircraftMarkers() {
     final now = DateTime.now();
     return client.aircraft.values.map((ac) {
@@ -287,7 +344,7 @@ class _ScopePageState extends State<ScopePage> {
           aircraft: ac,
           selected: ac.callsign == _selected,
           myCallsign: client.myCallsign,
-          onTap: () => setState(() => _selected = ac.callsign),
+          onTap: () => _select(ac.callsign),
         ),
       );
     }).toList();
@@ -338,6 +395,17 @@ class _ScopePageState extends State<ScopePage> {
             ),
           ),
           IconButton(
+            tooltip: 'Aircraft list',
+            icon: Icon(_showList ? Icons.list : Icons.list_alt_outlined),
+            onPressed: () => setState(() => _showList = !_showList),
+          ),
+          IconButton(
+            tooltip: 'Basemap: ${_basemaps[_basemap].name}',
+            icon: const Icon(Icons.map),
+            onPressed: () => setState(
+                () => _basemap = (_basemap + 1) % _basemaps.length),
+          ),
+          IconButton(
             tooltip: 'Toggle navdata (${_nav.length})',
             icon: Icon(_showNav ? Icons.layers : Icons.layers_clear),
             onPressed: () => setState(() => _showNav = !_showNav),
@@ -383,18 +451,27 @@ class _ScopePageState extends State<ScopePage> {
                   onMapReady: () => setState(() => _mapReady = true),
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                    userAgentPackageName: 'com.openvector.client',
-                    maxNativeZoom: 19,
-                  ),
+                  ..._tileLayers(),
                   MarkerLayer(markers: _buildNavMarkers()),
                   MarkerLayer(markers: _buildAircraftMarkers()),
                 ],
               ),
             ),
           ),
+          if (_showList)
+            Positioned(
+              left: 8,
+              top: 8,
+              bottom: 76,
+              width: 260,
+              child: Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(8),
+                clipBehavior: Clip.antiAlias,
+                color: const Color(0xF20E1411),
+                child: _aircraftList(),
+              ),
+            ),
           if (_showMessages)
             Positioned(
               right: 8,
@@ -419,6 +496,63 @@ class _ScopePageState extends State<ScopePage> {
     );
   }
 
+  Widget _aircraftList() {
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(8),
+          child: Row(children: [
+            Icon(Icons.flight, size: 18),
+            SizedBox(width: 8),
+            Text('Aircraft', style: TextStyle(fontWeight: FontWeight.bold)),
+          ]),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListenableBuilder(
+            listenable: client,
+            builder: (_, __) {
+              final list = client.aircraft.values.toList()
+                ..sort((a, b) => a.callsign.compareTo(b.callsign));
+              if (list.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No aircraft',
+                        style: TextStyle(color: Colors.white38)),
+                  ),
+                );
+              }
+              return ListView.builder(
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final ac = list[i];
+                  final fl = (ac.altitude / 100).round().toString().padLeft(3, '0');
+                  final owner = ac.trackedBy;
+                  final ownerStr = (owner != null && owner != client.myCallsign)
+                      ? '  @$owner'
+                      : '';
+                  return ListTile(
+                    dense: true,
+                    selected: ac.callsign == _selected,
+                    selectedTileColor: Colors.white10,
+                    leading: Icon(Icons.circle,
+                        size: 12, color: trackColor(ac, client.myCallsign)),
+                    title: Text(ac.callsign,
+                        style: const TextStyle(fontSize: 13)),
+                    subtitle: Text('FL$fl · ${ac.groundspeed}kt$ownerStr',
+                        style: const TextStyle(fontSize: 11)),
+                    onTap: () => _select(ac.callsign, center: true),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _commandBar() {
     return Material(
       elevation: 8,
@@ -429,10 +563,9 @@ class _ScopePageState extends State<ScopePage> {
         child: Row(
           children: [
             IconButton(
-              tooltip: _spawnMode ? 'Tap map to place' : 'Spawn aircraft',
-              icon: Icon(Icons.add_location_alt,
-                  color: _spawnMode ? Colors.orange : null),
-              onPressed: () => setState(() => _spawnMode = !_spawnMode),
+              tooltip: 'Spawn aircraft at field',
+              icon: const Icon(Icons.flight_takeoff),
+              onPressed: _openSpawnDialog,
             ),
             if (_selected != null)
               ListenableBuilder(
@@ -444,7 +577,8 @@ class _ScopePageState extends State<ScopePage> {
                     padding: const EdgeInsets.only(right: 8),
                     child: InputChip(
                       label: Text(_selected!),
-                      avatar: Icon(mine ? Icons.link : Icons.link_off, size: 16),
+                      avatar:
+                          Icon(mine ? Icons.link : Icons.link_off, size: 16),
                       onPressed: _toggleTrack,
                       onDeleted: () => setState(() => _selected = null),
                     ),
@@ -489,17 +623,10 @@ class _AircraftSymbol extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _color {
-    if (selected) return Colors.amber;
-    final owner = aircraft.trackedBy;
-    if (owner == null) return Colors.lightBlueAccent; // untracked
-    if (owner == myCallsign) return Colors.greenAccent; // mine
-    return Colors.orangeAccent; // tracked by another controller
-  }
-
   @override
   Widget build(BuildContext context) {
-    final color = _color;
+    final color =
+        selected ? Colors.amber : trackColor(aircraft, myCallsign);
     final fl = (aircraft.altitude / 100).round().toString().padLeft(3, '0');
     final owner = aircraft.trackedBy;
 

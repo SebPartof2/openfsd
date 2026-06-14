@@ -8,10 +8,14 @@ aircraft**.
 ## Features
 
 - Connects as a real FSD controller (no special API needed).
-- Live radar scope on satellite imagery (`flutter_map` + Esri World Imagery),
-  tuned for ground/local/clearance: it opens zoomed to the airport and the
-  camera stays in the field. Client-side extrapolation keeps targets gliding
-  smoothly between updates.
+- Live radar scope tuned for ground/local/clearance: opens zoomed to the airport
+  and the camera stays in the field. Switchable basemaps (satellite with labels,
+  dark, streets) via the map button. Client-side extrapolation keeps targets
+  gliding smoothly between updates.
+- **Aircraft list** panel: every target with track-state colour, altitude,
+  speed, and owner; tap to select and centre the map on it.
+- **Spawn at field**: the spawn button creates an aircraft at your position
+  (vis center) — no coordinates needed for tower/ground work.
 - **Navdata layer**: airports, VOR/NDB navaids, and enroute fixes rendered on the
   scope (viewport-culled, labels at higher zoom). Loaded from standard free data.
 - **Message window**: a dockable FSD chat panel showing all text traffic
