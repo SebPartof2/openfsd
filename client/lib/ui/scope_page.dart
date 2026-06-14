@@ -257,22 +257,30 @@ class _ScopePageState extends State<ScopePage> {
     final s = client.session!;
     return Scaffold(
       appBar: AppBar(
-        title: Text('OpenVector — ${s.callsign}'),
+        automaticallyImplyLeading: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.circle, color: Colors.greenAccent, size: 12),
+            const SizedBox(width: 8),
+            Text('OpenVector — ${s.callsign}'),
+          ],
+        ),
         actions: [
           ListenableBuilder(
             listenable: client,
             builder: (_, __) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
-                child: Text(
-                  '${client.aircraft.length} tgt'
-                  '${client.connected ? '' : '  (disconnected)'}',
-                  style: TextStyle(
-                      color:
-                          client.connected ? Colors.greenAccent : Colors.red),
-                ),
+                child: Text('${client.aircraft.length} tgt',
+                    style: const TextStyle(color: Colors.greenAccent)),
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Disconnect',
+            icon: const Icon(Icons.logout),
+            onPressed: client.disconnect,
           ),
           IconButton(
             tooltip: 'Toggle navdata (${_nav.length})',

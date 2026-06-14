@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../fsd/fsd_client.dart';
-import 'scope_page.dart';
 
 class ConnectPage extends StatefulWidget {
-  const ConnectPage({super.key});
+  final FsdClient client;
+  const ConnectPage({super.key, required this.client});
 
   @override
   State<ConnectPage> createState() => _ConnectPageState();
@@ -32,7 +32,6 @@ class _ConnectPageState extends State<ConnectPage> {
       _error = null;
     });
 
-    final client = FsdClient();
     final session = FsdSession(
       host: _host.text.trim(),
       port: int.tryParse(_port.text) ?? 6809,
@@ -48,23 +47,15 @@ class _ConnectPageState extends State<ConnectPage> {
       visRangeNm: double.tryParse(_vis.text) ?? 500,
     );
 
-    await client.connect(session);
+    // On success, HomePage swaps to the scope automatically.
+    await widget.client.connect(session);
 
     if (!mounted) return;
-    if (!client.connected) {
-      setState(() {
-        _connecting = false;
-        _error = client.error ?? 'Could not connect';
-      });
-      client.dispose();
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ScopePage(client: client)),
-    ).then((_) {
-      client.dispose();
-      if (mounted) setState(() => _connecting = false);
+    setState(() {
+      _connecting = false;
+      if (!widget.client.connected) {
+        _error = widget.client.error ?? 'Could not connect';
+      }
     });
   }
 
