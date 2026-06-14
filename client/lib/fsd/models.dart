@@ -58,6 +58,83 @@ double headingFromPbh(int pbh) {
   return headingBits * 359.0 / 1023.0;
 }
 
+/// A filed flight plan. Fields mirror the FSD `$FP`/`$AM` info section.
+class FlightPlan {
+  String rules; // I / V / D / S
+  String aircraft; // equipment code
+  String tas;
+  String dep; // departure (From)
+  String etd;
+  String atd;
+  String cruise;
+  String dest; // destination (To)
+  String hrsEnr;
+  String minEnr;
+  String hrsFuel;
+  String minFuel;
+  String alt; // alternate
+  String remarks;
+  String route;
+
+  FlightPlan({
+    this.rules = 'I',
+    this.aircraft = '',
+    this.tas = '0',
+    this.dep = '',
+    this.etd = '0',
+    this.atd = '0',
+    this.cruise = '0',
+    this.dest = '',
+    this.hrsEnr = '0',
+    this.minEnr = '0',
+    this.hrsFuel = '0',
+    this.minFuel = '0',
+    this.alt = '',
+    this.remarks = '',
+    this.route = '',
+  });
+
+  /// The 15-field, colon-joined info section.
+  String toInfo() => [
+        rules,
+        aircraft,
+        tas,
+        dep,
+        etd,
+        atd,
+        cruise,
+        dest,
+        hrsEnr,
+        minEnr,
+        hrsFuel,
+        minFuel,
+        alt,
+        remarks,
+        route,
+      ].join(':');
+
+  factory FlightPlan.fromInfo(List<String> i) {
+    String at(int n) => n < i.length ? i[n] : '';
+    return FlightPlan(
+      rules: at(0).isEmpty ? 'I' : at(0),
+      aircraft: at(1),
+      tas: at(2),
+      dep: at(3),
+      etd: at(4),
+      atd: at(5),
+      cruise: at(6),
+      dest: at(7),
+      hrsEnr: at(8),
+      minEnr: at(9),
+      hrsFuel: at(10),
+      minFuel: at(11),
+      alt: at(12),
+      remarks: at(13),
+      route: at(14),
+    );
+  }
+}
+
 /// Another controller online on the network.
 class Controller {
   final String callsign;

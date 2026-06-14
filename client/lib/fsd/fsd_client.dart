@@ -42,6 +42,7 @@ class FsdClient extends ChangeNotifier {
 
   final Map<String, Aircraft> aircraft = {};
   final Map<String, Controller> controllers = {};
+  final Map<String, FlightPlan> flightPlans = {};
   final List<PendingHandoff> pendingHandoffs = [];
 
   // Message threads keyed by the other party (callsign / channel recipient).
@@ -71,6 +72,7 @@ class FsdClient extends ChangeNotifier {
     // Start from a clean world so a previous session's state doesn't linger.
     aircraft.clear();
     controllers.clear();
+    flightPlans.clear();
     pendingHandoffs.clear();
     conversations.clear();
     conversationOrder.clear();
@@ -259,6 +261,22 @@ class FsdClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Asks the server for an aircraft's filed flight plan (reply arrives as $FP).
+  void requestFlightPlan(String callsign) {
+    final s = session;
+    if (s == null) return;
+    _send('\$CQ${s.callsign}:SERVER:FP:$callsign');
+  }
+
+  /// Files/amends a flight plan for an aircraft and reflects it locally.
+  void amendFlightPlan(String callsign, FlightPlan fp) {
+    final s = session;
+    if (s == null) return;
+    _send('\$AM${s.callsign}:SERVER:$callsign:${fp.toInfo()}');
+    flightPlans[callsign] = fp;
+    notifyListeners();
+  }
+
   // --- Conversation recording ---
 
   void _record(FsdMessage m) {
@@ -333,6 +351,18 @@ class FsdClient extends ChangeNotifier {
       _handleClientQuery(f);
     } else if (head.startsWith('\$HO')) {
       _handleHandoffRequest(f);
+    } else if (head.startsWith('\$FP')) {
+      // $FP<callsign>:<to>:<info...>
+      if (f.length >= 3) {
+        flightPlans[f[0].substring(3)] = FlightPlan.fromInfo(f.sublist(2));
+        notifyListeners();
+      }
+    } else if (head.startsWith('\$AM')) {
+      // $AM<from>:<to>:<callsign>:<info...>
+      if (f.length >= 4) {
+        flightPlans[f[2]] = FlightPlan.fromInfo(f.sublist(3));
+        notifyListeners();
+      }
     } else if (head.startsWith('\$ER')) {
       final msg = f.length >= 5 ? f.sublist(4).join(':') : line;
       _record(FsdMessage('server', myCallsign, 'ERROR: $msg'));

@@ -332,6 +332,10 @@ class _ScopePageState extends State<ScopePage> {
     final owner = ac.trackedBy;
     final mine = owner == client.myCallsign;
     final ownerStr = (owner != null && !mine) ? '   ◂ $owner' : '';
+    final fp = client.flightPlans[ac.callsign];
+    final route = fp != null
+        ? '${fp.dep.isEmpty ? '?' : fp.dep} → ${fp.dest.isEmpty ? '?' : fp.dest}'
+        : null;
 
     return ListTile(
       dense: true,
@@ -341,18 +345,162 @@ class _ScopePageState extends State<ScopePage> {
           size: 14, color: trackColor(ac, client.myCallsign)),
       title: Text(ac.callsign,
           style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(
-        'FL$fl   ${ac.groundspeed} kt   H$hdg   sq ${ac.squawk}$ownerStr',
-        style: const TextStyle(fontSize: 12),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('FL$fl  ${ac.groundspeed}kt  H$hdg  sq ${ac.squawk}$ownerStr',
+              style: const TextStyle(fontSize: 12)),
+          if (route != null)
+            Text(route,
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.lightBlueAccent)),
+        ],
       ),
-      trailing: IconButton(
-        tooltip: mine ? 'Drop track' : 'Track',
-        icon: Icon(mine ? Icons.link : Icons.link_off,
-            color: mine ? Colors.greenAccent : Colors.white54),
-        onPressed: () => _toggleTrack(ac.callsign),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Flight plan',
+            iconSize: 20,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32),
+            icon: const Icon(Icons.description_outlined),
+            onPressed: () => _openFlightPlanEditor(ac.callsign),
+          ),
+          IconButton(
+            tooltip: mine ? 'Drop track' : 'Track',
+            iconSize: 20,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32),
+            icon: Icon(mine ? Icons.link : Icons.link_off,
+                color: mine ? Colors.greenAccent : Colors.white54),
+            onPressed: () => _toggleTrack(ac.callsign),
+          ),
+        ],
       ),
       onTap: () => _selectAircraft(ac.callsign),
     );
+  }
+
+  Future<void> _openFlightPlanEditor(String callsign) async {
+    client.requestFlightPlan(callsign); // refresh from server for next time
+    final fp = client.flightPlans[callsign] ?? FlightPlan();
+
+    final acft = TextEditingController(text: fp.aircraft);
+    final dep = TextEditingController(text: fp.dep);
+    final dest = TextEditingController(text: fp.dest);
+    final cruise =
+        TextEditingController(text: fp.cruise == '0' ? '' : fp.cruise);
+    final route = TextEditingController(text: fp.route);
+    final remarks = TextEditingController(text: fp.remarks);
+    var rules = fp.rules;
+
+    InputDecoration dec(String l) => InputDecoration(
+        labelText: l, border: const OutlineInputBorder(), isDense: true);
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text('Flight plan — $callsign'),
+          content: SizedBox(
+            width: 460,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(children: [
+                    SizedBox(
+                      width: 90,
+                      child: DropdownButtonFormField<String>(
+                        value: rules,
+                        decoration: dec('Rules'),
+                        items: const [
+                          DropdownMenuItem(value: 'I', child: Text('IFR')),
+                          DropdownMenuItem(value: 'V', child: Text('VFR')),
+                          DropdownMenuItem(value: 'D', child: Text('DVFR')),
+                          DropdownMenuItem(value: 'S', child: Text('SVFR')),
+                        ],
+                        onChanged: (v) => setLocal(() => rules = v ?? rules),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: TextField(
+                            controller: acft,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: dec('Aircraft'))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(
+                        child: TextField(
+                            controller: dep,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: dec('From'))),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: TextField(
+                            controller: dest,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: dec('To'))),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                        width: 100,
+                        child: TextField(
+                            controller: cruise,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: dec('Cruise'))),
+                  ]),
+                  const SizedBox(height: 8),
+                  TextField(
+                      controller: route,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: dec('Route')),
+                  const SizedBox(height: 8),
+                  TextField(
+                      controller: remarks,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: dec('Remarks')),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('File')),
+          ],
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      fp.rules = rules;
+      fp.aircraft = acft.text.trim();
+      fp.dep = dep.text.trim().toUpperCase();
+      fp.dest = dest.text.trim().toUpperCase();
+      fp.cruise = cruise.text.trim().isEmpty ? '0' : cruise.text.trim();
+      fp.route = route.text.trim();
+      fp.remarks = remarks.text.trim();
+      client.amendFlightPlan(callsign, fp);
+    }
   }
 
   Widget _controllerList() {

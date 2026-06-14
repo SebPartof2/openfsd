@@ -122,6 +122,7 @@ type aircraftState struct {
 	ClimbRateFpm      int        `json:"climb_rate_fpm"`
 	NavMode           int        `json:"nav_mode"`
 	Route             []waypoint `json:"route"`
+	FlightPlan        string     `json:"flight_plan"`
 }
 
 // create instantiates a simulated aircraft from a state snapshot, registers it,
@@ -160,6 +161,9 @@ func (m *simManager) create(st aircraftState, track string) (*simAircraft, error
 		squawk = simDefaultSquawk
 	}
 	c.transponder.Store(squawk)
+	if st.FlightPlan != "" {
+		c.flightPlan.Store(st.FlightPlan)
+	}
 	c.setLatLon(st.Lat, st.Lon)
 	c.visRange.Store(simDefaultVisRange)
 	c.heading.Store(int32(st.Heading))
@@ -484,6 +488,7 @@ func (m *simManager) snapshot(ac *simAircraft) aircraftState {
 		ClimbRateFpm:      climb,
 		NavMode:           int(nav),
 		Route:             route,
+		FlightPlan:        ac.flightPlan.Load(),
 	}
 }
 
