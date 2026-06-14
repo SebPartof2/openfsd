@@ -9,8 +9,9 @@ import (
 
 // Repositories bundles all repository interfaces
 type Repositories struct {
-	UserRepo   UserRepository
-	ConfigRepo ConfigRepository
+	UserRepo        UserRepository
+	ConfigRepo      ConfigRepository
+	SimAircraftRepo SimAircraftRepository
 }
 
 // NewUserRepository creates a UserRepository based on the database driver
@@ -37,6 +38,18 @@ func NewConfigRepository(db *sql.DB) (ConfigRepository, error) {
 	}
 }
 
+// NewSimAircraftRepository creates a SimAircraftRepository based on the database driver
+func NewSimAircraftRepository(db *sql.DB) (SimAircraftRepository, error) {
+	switch db.Driver().(type) {
+	case *pq.Driver:
+		return &PostgresSimAircraftRepository{db: db}, nil
+	case *sqlite.Driver:
+		return &SQLiteSimAircraftRepository{db: db}, nil
+	default:
+		return nil, fmt.Errorf("unsupported database")
+	}
+}
+
 // NewRepositories creates a Repositories bundle with implementations for the given database
 func NewRepositories(db *sql.DB) (repositories *Repositories, err error) {
 	repositories = &Repositories{}
@@ -44,6 +57,9 @@ func NewRepositories(db *sql.DB) (repositories *Repositories, err error) {
 		return
 	}
 	if repositories.ConfigRepo, err = NewConfigRepository(db); err != nil {
+		return
+	}
+	if repositories.SimAircraftRepo, err = NewSimAircraftRepository(db); err != nil {
 		return
 	}
 	return

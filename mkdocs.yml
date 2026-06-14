@@ -9,3 +9,4 @@ nav:
   - 'enumerations.md'
   - 'authentication-token.md'
   - 'vatsim-auth.md'
+  - 'simulated-aircraft.md'

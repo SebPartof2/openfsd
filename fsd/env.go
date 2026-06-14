@@ -15,6 +15,8 @@ type ServerConfig struct {
 
 	NumMetarWorkers int `env:"NUM_METAR_WORKERS, default=4"` // Number of METAR fetch workers to run
 
+	ControllerOnly bool `env:"CONTROLLER_ONLY, default=false"` // When true, reject pilot (#AP) connections; aircraft are server-simulated
+
 	ServiceHTTPListenAddr string `env:"SERVICE_HTTP_LISTEN_ADDR, default=:13618"`
 }
 

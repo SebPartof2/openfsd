@@ -1,20 +1,27 @@
-# openfsd
+# OpenVector
 
 [![license](https://img.shields.io/github/license/renorris/openfsd)](https://github.com/renorris/openfsd/blob/main/LICENSE)
 
-**openfsd** is an open-source multiplayer flight simulation server implementing the modern VATSIM FSD protocol. It connects pilots and air traffic controllers in a shared virtual environment.
+**OpenVector** is an open-source, **controller-focused** flight simulation network built on the modern VATSIM FSD protocol. Air traffic controllers connect their scopes, **create simulated aircraft**, and **vector them** — running an entire airspace with no connected pilots required.
+
+OpenVector is a fork of [openfsd](https://github.com/renorris/openfsd) and remains compatible with standard FSD controller clients (Euroscope, CRC, VRC, etc.).
 
 ## About
 
 Flight Sim Daemon (colloquially known as FSD) is the software/protocol responsible for connecting home flight simulator clients to a single, shared multiplayer world on hobbyist networks such as [VATSIM](https://vatsim.net/docs/about/about-vatsim) and [IVAO](https://www.ivao.aero/).
 FSD was originally written in the late 90's by [Marty Bochane](https://github.com/kuroneko/fsd) for [SATCO](https://web.archive.org/web/20000619145015/http://www.satco.org/), later to be forked and taken closed-source by VATSIM in 2001.
-As of May 2025, FSD is still used to facilitate over 140,000 active members connecting their flight simulators to the [network](https://vatsim-radar.com/).
+
+OpenVector keeps full FSD compatibility but shifts the focus to controllers: instead of waiting for pilots to connect, controllers populate the airspace themselves with server-simulated traffic that they can track, hand off, and maneuver.
 
 ## Features
 
-- Facilitate multiplayer flight simulation with VATSIM protocol compatibility.
-- Integrate web-based management for users, settings, and connections.
-- Support SQLite and PostgreSQL for persistent storage.
+- **Controller-spawned simulated aircraft** flown by a server-side flight model — see [Simulated Aircraft](docs/simulated-aircraft.md).
+- **Track-based maneuver authority**: only the controller holding an aircraft's track may command it, and control transfers automatically on handoff.
+- **Persistent traffic** that survives controller disconnects and server restarts.
+- **Controller-only mode** (`CONTROLLER_ONLY=true`) to reject pilot connections entirely.
+- Full VATSIM FSD protocol compatibility for standard controller clients.
+- Web-based management for users, settings, and connections.
+- SQLite and PostgreSQL support for persistent storage.
 
 ## Quick Start with Docker
 

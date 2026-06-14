@@ -58,6 +58,13 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	// On controller-only networks, reject pilot connections. Aircraft are
+	// created and flown server-side by controllers instead.
+	if s.cfg.ControllerOnly && !data.isAtc {
+		sendError(conn, RequestedLevelTooHighError, "This network only accepts air traffic controllers")
+		return
+	}
+
 	client := newClient(ctx, conn, scanner, data)
 
 	// Attempt to authenticate connection

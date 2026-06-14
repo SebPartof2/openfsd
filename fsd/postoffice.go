@@ -180,6 +180,23 @@ func calculateBoundingBox(center [2]float64, radius float64) (min [2]float64, ma
 	return min, max
 }
 
+// bearing returns the initial great-circle bearing in degrees [0,360) from
+// point 1 to point 2.
+func bearing(lat1, lon1, lat2, lon2 float64) float64 {
+	phi1 := lat1 * degToRad
+	phi2 := lat2 * degToRad
+	dLon := (lon2 - lon1) * degToRad
+
+	y := math.Sin(dLon) * math.Cos(phi2)
+	x := math.Cos(phi1)*math.Sin(phi2) - math.Sin(phi1)*math.Cos(phi2)*math.Cos(dLon)
+	theta := math.Atan2(y, x) / degToRad
+
+	if theta < 0 {
+		theta += 360
+	}
+	return theta
+}
+
 // distance calculates the great-circle distance between two points using the Haversine formula.
 func distance(lat1, lon1, lat2, lon2 float64) float64 {
 	dLat := (lat2 - lat1) * degToRad
