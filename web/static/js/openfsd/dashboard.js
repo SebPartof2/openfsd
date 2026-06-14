@@ -121,8 +121,51 @@ async function populateMap(map, planeIcon) {
                 marker.openPopup();
             }
         });
+
+        // Add ATC (controllers). They have a position from their ATC update.
+        (res.atc || []).forEach((atc) => {
+            const callsign = atc.callsign;
+            const lat = atc.latitude;
+            const lon = atc.longitude;
+
+            const marker = L.circleMarker([lat, lon], {
+                radius: 7,
+                color: '#00c853',
+                weight: 2,
+                fillColor: '#00c853',
+                fillOpacity: 0.5,
+                title: callsign
+            });
+
+            let popupContent = `<b>${callsign}</b><br>${atc.name}<br>` +
+                `${facilityName(atc.facility)} • ${atc.frequency}`;
+            if (userNetworkRating >= 11) {
+                popupContent += `<br><button onclick="kickUser('${callsign}')">Kick</button>`;
+            }
+            marker.bindPopup(popupContent);
+            marker.addTo(map);
+            dashboardMarkers.push(marker);
+
+            if (openCallsigns.has(callsign)) {
+                marker.openPopup();
+            }
+        });
+
         $("#dashboard-connection-count").text(dashboardMarkers.length);
     } catch (error) {
         console.error("Failed to fetch VATSIM data:", error);
+    }
+}
+
+function facilityName(val) {
+    switch (val) {
+        case 0: return "OBS"
+        case 1: return "FSS"
+        case 2: return "DEL"
+        case 3: return "GND"
+        case 4: return "TWR"
+        case 5: return "APP"
+        case 6: return "CTR"
+        default: return "ATC"
     }
 }
