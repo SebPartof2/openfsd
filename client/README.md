@@ -56,6 +56,21 @@ flutter run            # or: flutter run -d windows / -d macos / -d linux / -d c
 > Note: a plain browser cannot open the raw TCP socket FSD requires, so the web
 > target won't connect without a bridge. Use a desktop or mobile target.
 
+### macOS: allow outbound connections
+
+macOS apps run sandboxed and `flutter create` does not grant outbound network
+access, so the client fails with `Operation not permitted (errno = 1)` until you
+add the **network client** entitlement. Add the following inside the `<dict>` of
+**both** `macos/Runner/DebugProfile.entitlements` and
+`macos/Runner/Release.entitlements`, then restart the app:
+
+```xml
+<key>com.apple.security.network.client</key>
+<true/>
+```
+
+(Linux and Windows desktop builds need no entitlement changes.)
+
 ## Connecting
 
 Fill in the server host/port, your **CID** and **password** (an OpenVector user —
